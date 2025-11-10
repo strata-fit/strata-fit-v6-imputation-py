@@ -1,0 +1,44 @@
+{
+  "name": "strata-fit-v6-kmeans-py",
+  "image": "strata-fit-v6-kmeans-py",
+  "vantage6_version": "4.6",
+  "code_url": "https://mygitrepo.org",
+  "documentation_url": "",
+  "partitioning": "horizontal",
+  "functions": [
+    {
+      "name": "central",
+      "description": "Run suited imputation methods in a federated environment",
+      "type": "central",
+      "databases": [
+        {
+          "name": "Partial database 1"
+        }
+      ],
+      "arguments": [
+        {
+          "name": "arg1",
+          "type": "",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "name": "partial",
+      "description": "",
+      "type": "federated",
+      "databases": [
+        {
+          "name": "Database 1"
+        }
+      ],
+      "arguments": [
+        {
+          "name": "arg1",
+          "type": "",
+          "description": ""
+        }
+      ]
+    }
+  ]
+}
