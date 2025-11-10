@@ -1,4 +1,4 @@
-# Documentation of strata-fit-v6-kmeans-py
+# Documentation of strata-fit-v6-imputation-py
 
 ### How to run this documentation locally
 
