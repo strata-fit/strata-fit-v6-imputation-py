@@ -43,8 +43,10 @@ def central(
 
     info("Waiting for results")
     results = _start_partial_and_collect_results(client, input_, organizations_to_include)
-
     info("Results obtained!")
+
+    info("Computing global average")
+    
 
     return results
 

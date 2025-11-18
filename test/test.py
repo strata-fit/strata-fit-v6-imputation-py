@@ -63,10 +63,9 @@ central_task = client.task.create(
 )
 
 results = client.wait_for_results(central_task.get("id"))
-
-import polars as pl
-for idx, result in enumerate(results):
-    print(len(result[0]))
+print(results)
+# for idx, result in enumerate(results):
+#     print(len(result[0]))
     # print(pl.DataFrame({col: list(inner_dict.values()) for col, inner_dict in result.items()}))
 
 # # Run the partial method for all organizations
