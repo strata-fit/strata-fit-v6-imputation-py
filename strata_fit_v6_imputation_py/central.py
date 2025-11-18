@@ -11,7 +11,7 @@ from vantage6.algorithm.tools.util import info, warn, error
 from vantage6.algorithm.tools.decorators import algorithm_client
 from vantage6.algorithm.client import AlgorithmClient
 from vantage6.algorithm.tools.exceptions import PrivacyThresholdViolation
-from imputation_strategies.base import ImputationStrategy
+from .types import ImputationStrategyEnum
 from .types import MINIMUM_ORGANIZATIONS
 
 
@@ -19,7 +19,7 @@ from .types import MINIMUM_ORGANIZATIONS
 def central(
     client: AlgorithmClient,
     columns: List[str],
-    imputation_strategy: Type[ImputationStrategy],
+    imputation_strategy: ImputationStrategyEnum,
     organizations_to_include: Optional[List[int]] = None
 ) -> Any:
 
@@ -37,7 +37,7 @@ def central(
         "method": "partial_compute",
         "kwargs": {
             "columns" : columns,
-            "imputation_strategy" : imputation_strategy
+            "imputation_strategy" : ImputationStrategyEnum.MEAN
         }
     }
 

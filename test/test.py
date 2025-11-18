@@ -12,7 +12,7 @@ installed. This can be done by running:
     pip install vantage6-algorithm-tools
 """
 from vantage6.algorithm.tools.mock_client import MockAlgorithmClient
-from strata_fit_v6_imputation_py.imputation_strategies.mean import MeanImputer
+from strata_fit_v6_imputation_py.types import ImputationStrategyEnum
 from pathlib import Path
 
 # get path of current directory
@@ -56,13 +56,18 @@ central_task = client.task.create(
         "kwargs": {
             "columns" : columns,
             "organizations_to_include" : org_ids,
-            "imputation_strategy" : MeanImputer
+            "imputation_strategy" : ImputationStrategyEnum.MEAN.value
         }
     },
     organizations=[org_ids[0]],
 )
+
 results = client.wait_for_results(central_task.get("id"))
-print(results)
+
+import polars as pl
+for idx, result in enumerate(results):
+    print(len(result[0]))
+    # print(pl.DataFrame({col: list(inner_dict.values()) for col, inner_dict in result.items()}))
 
 # # Run the partial method for all organizations
 # task = client.task.create(
