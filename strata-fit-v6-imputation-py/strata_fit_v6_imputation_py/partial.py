@@ -7,25 +7,23 @@ encryption if that is enabled). From there, they are sent to the partial task
 or directly to the user (if they requested partial results).
 """
 import pandas as pd
-from typing import Any
+from typing import Any, List, Type
 
 from vantage6.algorithm.tools.util import info, warn, error
 from vantage6.algorithm.tools.decorators import data
+from imputation_strategies.base import ImputationStrategy
 
 
 @data(1)
-def partial(
-    df1: pd.DataFrame, arg1
+def partial_compute(
+    df1: pd.DataFrame,
+    columns: List[str],
+    imputation_strategy: Type[ImputationStrategy]
 ) -> Any:
 
     """ Decentral part of the algorithm """
-    # TODO this is a simple example to show you how to return something simple.
-    # Replace it by your own code
-    info("Computing mean age by gender")
-    result = df1[["Gender", "Age"]].groupby("Gender").mean()
+    imputer = imputation_strategy()
+    info(f"Computing imputation metrics with strategy: {imputation_strategy.__class__}")
+    result = imputer.compute(df1, columns)
 
-    # Return results to the vantage6 server.
-    # TODO make sure no privacy sensitive data is shared
     return result.to_dict()
-
-# TODO Feel free to add more partial functions here.

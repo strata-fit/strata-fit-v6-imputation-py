@@ -12,43 +12,51 @@ installed. This can be done by running:
     pip install vantage6-algorithm-tools
 """
 from vantage6.algorithm.tools.mock_client import MockAlgorithmClient
+from strata_fit_v6_imputation_py.imputation_strategies.mean import MeanImputer
 from pathlib import Path
 
 # get path of current directory
-current_path = Path(__file__).parent
+data_directory = Path(__file__).parent
+org_ids = [1,2,3]
 
 ## Mock client
 client = MockAlgorithmClient(
     datasets=[
         # Data for first organization
         [{
-            "database": current_path / "test_data.csv",
-            "db_type": "csv",
-            "input_data": {}
+            "database": data_directory / "data_times/alpha.csv",
+            "db_type": "csv"
         }],
         # Data for second organization
         [{
-            "database": current_path / "test_data.csv",
-            "db_type": "csv",
-            "input_data": {}
+            "database": data_directory / "data_times/beta.csv",
+            "db_type": "csv"
+        }],
+        # Data for second organization
+        [{
+            "database": data_directory / "data_times/gamma.csv",
+            "db_type": "csv"
         }]
     ],
-    module="strata-fit-v6-kmeans-py"
+    organization_ids=org_ids,
+    module="strata_fit_v6_imputation_py"
 )
+
 
 # list mock organizations
 organizations = client.organization.list()
 print(organizations)
-org_ids = [organization["id"] for organization in organizations]
+# org_ids = [organization["id"] for organization in organizations]
+columns = ["DAS28", "CRP", "ESR", "SJC28", "TJC28"]
 
 # Run the central method on 1 node and get the results
 central_task = client.task.create(
     input_={
         "method":"central",
         "kwargs": {
-            # TODO add sensible values
-            "arg1": "some_value",
-
+            "columns" : columns,
+            "organizations_to_include" : org_ids,
+            "imputation_strategy" : MeanImputer
         }
     },
     organizations=[org_ids[0]],
@@ -56,20 +64,20 @@ central_task = client.task.create(
 results = client.wait_for_results(central_task.get("id"))
 print(results)
 
-# Run the partial method for all organizations
-task = client.task.create(
-    input_={
-        "method":"partial",
-        "kwargs": {
-            # TODO add sensible values
-            "arg1": "some_value",
+# # Run the partial method for all organizations
+# task = client.task.create(
+#     input_={
+#         "method":"partial",
+#         "kwargs": {
+#             # TODO add sensible values
+#             "arg1": "some_value",
 
-        }
-    },
-    organizations=org_ids
-)
-print(task)
+#         }
+#     },
+#     organizations=org_ids
+# )
+# # print(task)
 
-# Get the results from the task
-results = client.wait_for_results(task.get("id"))
-print(results)
+# # Get the results from the task
+# results = client.wait_for_results(task.get("id"))
+# print(results)
