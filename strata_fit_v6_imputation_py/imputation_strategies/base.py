@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 import pandas as pd
+import polars as pl
+import polars.selectors as cs
 from typing import Dict, Any, List
+
 
 class ImputationStrategy(ABC):
 
@@ -27,5 +30,17 @@ class ImputationStrategy(ABC):
 
         Returns:
             pd.DataFrame: the imputed dataframe
+        """
+        pass
+
+    @abstractmethod
+    def aggregate(self, results: List[Dict[Any, Any]], columns: List[str]) -> pd.DataFrame:
+        """aggregates node means into global means
+
+        Args:
+            df (pd.DataFrame): dataframe of means from all nodes        
+
+        Returns:
+            pd.DataFrame: a pandas dataframe with global mean per ID and column
         """
         pass

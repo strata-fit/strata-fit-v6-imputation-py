@@ -23,3 +23,17 @@ class MeanImputer(ImputationStrategy):
         df = df.combine_first(global_metric).reset_index()
 
         return df
+    
+    def aggregate(self, results: List[Dict[Any, Any]], columns: List[str]) -> Any:
+        
+        dfs = []
+        for result in results:
+            dfs.append(pl.DataFrame({col: list(inner_dict.values()) for col, inner_dict in result.items()}))
+
+        dfpl = pl.concat(dfs, how="vertical")
+
+        df = dfpl.group_by("pat_ID").agg(
+            cs.by_name(columns).mul("n").sum().truediv(pl.col("n").sum())
+        ).to_pandas()
+
+        return df.to_dict()

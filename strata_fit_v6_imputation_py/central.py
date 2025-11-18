@@ -11,6 +11,7 @@ from vantage6.algorithm.tools.util import info, warn, error
 from vantage6.algorithm.tools.decorators import algorithm_client
 from vantage6.algorithm.client import AlgorithmClient
 from vantage6.algorithm.tools.exceptions import PrivacyThresholdViolation
+from .types import STRATEGY_MAP
 from .types import ImputationStrategyEnum
 from .types import MINIMUM_ORGANIZATIONS
 
@@ -21,7 +22,7 @@ def central(
     columns: List[str],
     imputation_strategy: ImputationStrategyEnum,
     organizations_to_include: Optional[List[int]] = None
-) -> Any:
+) -> List[Dict[Any, Any]]:
 
     """ Central part of the algorithm """
     if not organizations_to_include:
@@ -37,7 +38,7 @@ def central(
         "method": "partial_compute",
         "kwargs": {
             "columns" : columns,
-            "imputation_strategy" : ImputationStrategyEnum.MEAN
+            "imputation_strategy" : imputation_strategy
         }
     }
 
@@ -45,10 +46,12 @@ def central(
     results = _start_partial_and_collect_results(client, input_, organizations_to_include)
     info("Results obtained!")
 
-    info("Computing global average")
+    info("Computing global metrics")
+    aggregated = STRATEGY_MAP[imputation_strategy]().aggregate(results=results, columns=columns)
     
+    info("Sending global metrics for imputation")
 
-    return results
+    return aggregated #results
 
 def _start_partial_and_collect_results(
     client: AlgorithmClient,

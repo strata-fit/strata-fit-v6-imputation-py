@@ -56,14 +56,18 @@ central_task = client.task.create(
         "kwargs": {
             "columns" : columns,
             "organizations_to_include" : org_ids,
-            "imputation_strategy" : ImputationStrategyEnum.MEAN.value
+            "imputation_strategy" : ImputationStrategyEnum.MEAN
         }
     },
     organizations=[org_ids[0]],
 )
 
 results = client.wait_for_results(central_task.get("id"))
-print(results)
+
+# import polars as pl
+# for result in results[0]:
+#     print(pl.DataFrame({col: list(inner_dict.values()) for col, inner_dict in result.items()}))
+
 # for idx, result in enumerate(results):
 #     print(len(result[0]))
     # print(pl.DataFrame({col: list(inner_dict.values()) for col, inner_dict in result.items()}))
