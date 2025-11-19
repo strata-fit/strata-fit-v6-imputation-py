@@ -3,6 +3,7 @@ import pandas as pd
 import polars as pl
 import polars.selectors as cs
 from .base import ImputationStrategy
+from strata_fit_v6_imputation_py.utils import stack_results
 
 class MeanImputer(ImputationStrategy):
 
@@ -16,24 +17,18 @@ class MeanImputer(ImputationStrategy):
         # df = df.groupby("pat_ID")[columns].mean().reset_index()
         return dfpl.to_pandas()
     
-    def impute(self, df: pd.DataFrame, global_metric: pd.DataFrame) -> pd.DataFrame:
-        df = df.set_index("pat_ID")
-        global_metric = global_metric.set_index("pat_ID")
-
-        df = df.combine_first(global_metric).reset_index()
-
+    def impute(self, df: pd.DataFrame, global_metric: Dict) -> pd.DataFrame:
+        impute_vals = {col: list(v.values())[0] for col, v in global_metric.items()}
+        df = df.fillna(impute_vals)
         return df
     
-    def aggregate(self, results: List[Dict[Any, Any]], columns: List[str]) -> Any:
-        
-        dfs = []
-        for result in results:
-            dfs.append(pl.DataFrame({col: list(inner_dict.values()) for col, inner_dict in result.items()}))
+    def aggregate(self, node_metrics: List[Dict[Any, Any]], columns: List[str]) -> Any:
+        dfpl = pl.from_pandas(stack_results(node_metrics))
+        # simplest averaging
+        global_weighted_mean = cs.by_name(columns).mul("n").sum().truediv(pl.col("n").sum())
 
-        dfpl = pl.concat(dfs, how="vertical")
-
-        df = dfpl.group_by("pat_ID").agg(
-            cs.by_name(columns).mul("n").sum().truediv(pl.col("n").sum())
-        ).to_pandas()
+        df = dfpl.with_columns(
+            global_weighted_mean
+        ).slice(0, 1).drop("pat_ID", "n").to_pandas()
 
         return df.to_dict()

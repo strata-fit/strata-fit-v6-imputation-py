@@ -21,7 +21,19 @@ class ImputationStrategy(ABC):
         pass
 
     @abstractmethod
-    def impute(self, df: pd.DataFrame, global_metric: pd.DataFrame) -> pd.DataFrame:
+    def aggregate(self, node_metrics: List[Dict[Any, Any]], columns: List[str]) -> pd.DataFrame:
+        """aggregates node means into global means
+
+        Args:
+            df (pd.DataFrame): dataframe of means from all nodes        
+
+        Returns:
+            pd.DataFrame: a pandas dataframe with global mean per ID and column
+        """
+        pass
+
+    @abstractmethod
+    def impute(self, df: pd.DataFrame, global_metric: Dict) -> pd.DataFrame:
         """imputes the given metrics into df
 
         Args:
@@ -30,17 +42,5 @@ class ImputationStrategy(ABC):
 
         Returns:
             pd.DataFrame: the imputed dataframe
-        """
-        pass
-
-    @abstractmethod
-    def aggregate(self, results: List[Dict[Any, Any]], columns: List[str]) -> pd.DataFrame:
-        """aggregates node means into global means
-
-        Args:
-            df (pd.DataFrame): dataframe of means from all nodes        
-
-        Returns:
-            pd.DataFrame: a pandas dataframe with global mean per ID and column
         """
         pass

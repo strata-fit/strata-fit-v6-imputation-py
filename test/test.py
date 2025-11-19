@@ -1,16 +1,3 @@
-"""
-Run this script to test your algorithm locally (without building a Docker
-image) using the mock client.
-
-Run as:
-
-    python test.py
-
-Make sure to do so in an environment where `vantage6-algorithm-tools` is
-installed. This can be done by running:
-
-    pip install vantage6-algorithm-tools
-"""
 from vantage6.algorithm.tools.mock_client import MockAlgorithmClient
 from strata_fit_v6_imputation_py.types import ImputationStrategyEnum
 from pathlib import Path
@@ -64,28 +51,4 @@ central_task = client.task.create(
 
 results = client.wait_for_results(central_task.get("id"))
 
-# import polars as pl
-# for result in results[0]:
-#     print(pl.DataFrame({col: list(inner_dict.values()) for col, inner_dict in result.items()}))
 
-# for idx, result in enumerate(results):
-#     print(len(result[0]))
-    # print(pl.DataFrame({col: list(inner_dict.values()) for col, inner_dict in result.items()}))
-
-# # Run the partial method for all organizations
-# task = client.task.create(
-#     input_={
-#         "method":"partial",
-#         "kwargs": {
-#             # TODO add sensible values
-#             "arg1": "some_value",
-
-#         }
-#     },
-#     organizations=org_ids
-# )
-# # print(task)
-
-# # Get the results from the task
-# results = client.wait_for_results(task.get("id"))
-# print(results)
