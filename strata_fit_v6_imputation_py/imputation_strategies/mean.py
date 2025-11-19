@@ -5,6 +5,7 @@ import polars.selectors as cs
 from .base import ImputationStrategy
 from strata_fit_v6_imputation_py.utils import stack_results
 
+@ImputationStrategy.register
 class MeanImputer(ImputationStrategy):
 
     def compute(self, df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:

@@ -1,5 +1,5 @@
 from vantage6.algorithm.tools.mock_client import MockAlgorithmClient
-from strata_fit_v6_imputation_py.types import ImputationStrategyEnum
+from strata_fit_v6_imputation_py.imputation_strategies.base import ImputationStrategyEnum
 from pathlib import Path
 
 # get path of current directory

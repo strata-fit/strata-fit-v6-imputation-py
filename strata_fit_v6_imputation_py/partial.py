@@ -1,12 +1,10 @@
 import pandas as pd
 from typing import Any, List, Dict
 
-from vantage6.algorithm.tools.util import info, warn, error
+from vantage6.algorithm.tools.util import info
 from vantage6.algorithm.tools.decorators import data
-from .utils import stack_results
-from .types import ImputationStrategyEnum
-from .types import STRATEGY_MAP
-import polars as pl
+from .imputation_strategies.base import ImputationStrategyEnum
+from .imputation_strategies.base import STRATEGY_REGISTRY
 
 
 @data(1)
@@ -17,7 +15,7 @@ def partial_compute(
 ) -> Any:
 
     """ Decentral part of the algorithm """
-    imputer = STRATEGY_MAP[imputation_strategy]()
+    imputer = STRATEGY_REGISTRY[imputation_strategy]()
     info(f"Computing imputation metrics with strategy: {imputation_strategy.value}")
     result = imputer.compute(df1, columns)
 
@@ -40,7 +38,7 @@ def partial_impute(
     Returns:
         List[Dict[Any, Any]]: imputed data
     """
-    imputer = STRATEGY_MAP[imputation_strategy]()
+    imputer = STRATEGY_REGISTRY[imputation_strategy]()
     info("imputing global metrics into local node data")
 
     result = imputer.impute(df1, global_metrics)

@@ -11,8 +11,8 @@ from vantage6.algorithm.tools.util import info
 from vantage6.algorithm.tools.decorators import algorithm_client
 from vantage6.algorithm.client import AlgorithmClient
 from vantage6.algorithm.tools.exceptions import PrivacyThresholdViolation
-from .types import STRATEGY_MAP
-from .types import ImputationStrategyEnum
+from .imputation_strategies.base import STRATEGY_REGISTRY
+from .imputation_strategies.base import ImputationStrategyEnum
 from .types import MINIMUM_ORGANIZATIONS
 
 @algorithm_client
@@ -22,8 +22,8 @@ def central(
     imputation_strategy: ImputationStrategyEnum,
     organizations_to_include: Optional[List[int]] = None
 ) -> List[Dict[Any, Any]]:
+    
 
-    """ Central part of the algorithm """
     if not organizations_to_include:
         organizations_to_include = [org["id"] for org in client.organization.list()]
 
@@ -44,7 +44,7 @@ def central(
     info("Results obtained!")
 
     info("Computing global metrics")
-    global_metrics = STRATEGY_MAP[imputation_strategy]().aggregate(node_metrics=node_metrics, columns=columns)
+    global_metrics = STRATEGY_REGISTRY[imputation_strategy]().aggregate(node_metrics=node_metrics, columns=columns)
     
     info("Sending global metrics for imputation")
     imputed_results = _start_partial_and_collect_results(

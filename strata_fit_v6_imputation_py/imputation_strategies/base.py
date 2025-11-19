@@ -1,11 +1,25 @@
 from abc import ABC, abstractmethod
 import pandas as pd
-import polars as pl
-import polars.selectors as cs
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Type
+from enum import Enum
 
+class ImputationStrategyEnum(str, Enum):
+    MEAN = "MeanImputer"
+    MODE = "ModeImputer"
+    # TODO
+    # other strategies
+
+STRATEGY_REGISTRY: Dict[str, Type['ImputationStrategy']] = {}
 
 class ImputationStrategy(ABC):
+
+    @classmethod
+    def register(cls, subclass: Type['ImputationStrategy']) -> Type['ImputationStrategy']:
+        """
+        Register a subclass using its class name automatically.
+        """
+        STRATEGY_REGISTRY[subclass.__name__] = subclass
+        return subclass
 
     @abstractmethod
     def compute(self, df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
