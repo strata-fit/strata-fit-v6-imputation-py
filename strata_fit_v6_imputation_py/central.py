@@ -15,7 +15,21 @@ def central(
     imputation_strategy: Enum,
     organizations_to_include: Optional[List[int]] = None
 ) -> List[Dict[Any, Any]]:
-    
+    """central orchestration of federated imputation
+
+    Args:
+        client (AlgorithmClient): Vantage6 client object injected via the `@algorithm_client` decorator.
+        columns (List[str]): Data columns for which imputation metrics will be computed
+        imputation_strategy (Enum): The imputation method to use
+        organizations_to_include (Optional[List[int]], optional): List of organization IDs to include in the computation. If not provided,
+        all organizations in the collaboration will be used. Defaults to None.
+
+    Raises:
+        PrivacyThresholdViolation: If the number of organizations included is less than the minimum threshold required for privacy.
+
+    Returns:
+        List[Dict[Any, Any]]: A list of dicts with imputed local data
+    """
     if not organizations_to_include:
         organizations_to_include = [org["id"] for org in client.organization.list()]
 

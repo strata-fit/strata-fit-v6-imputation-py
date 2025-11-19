@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Hashable
 from enum import Enum
 from vantage6.algorithm.tools.util import info
 from vantage6.algorithm.tools.decorators import data
@@ -12,9 +12,17 @@ def partial_compute(
     df1: pd.DataFrame,
     columns: List[str],
     imputation_strategy: Enum = ImputationStrategyEnum.MeanImputer
-) -> Any:
+) -> Dict[Hashable, Any]:
+    """compute the node specific imputation metrics
 
-    """ Decentral part of the algorithm """
+    Args:
+        df1 (pd.DataFrame): local node data
+        columns (List[str]): columns for imputation
+        imputation_strategy (Enum, optional): imputation method to use. Defaults to ImputationStrategyEnum.MeanImputer.
+
+    Returns:
+        Dict[Hashable, Any]:
+    """
     imputer = STRATEGY_REGISTRY[imputation_strategy.value]()
     info(f"Computing imputation metrics with strategy: {imputation_strategy.value}")
     result = imputer.compute(df1, columns)
@@ -27,7 +35,7 @@ def partial_impute(
     df1: pd.DataFrame,
     global_metrics: Dict,
     imputation_strategy: Enum = ImputationStrategyEnum.MeanImputer
-) -> Any:
+) -> Dict[Hashable, Any]:
     """impute global metrics into node data
 
     Args:

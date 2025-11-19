@@ -29,7 +29,7 @@ class ImputationStrategy(ABC):
 
     @abstractmethod
     def aggregate(self, node_metrics: List[Dict[Any, Any]], columns: List[str]) -> pd.DataFrame:
-        """aggregates node means into global means
+        """aggregates node metrics into global metrics
 
         Args:
             df (pd.DataFrame): dataframe of means from all nodes        
