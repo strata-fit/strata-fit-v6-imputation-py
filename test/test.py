@@ -1,5 +1,5 @@
 from vantage6.algorithm.tools.mock_client import MockAlgorithmClient
-from strata_fit_v6_imputation_py.imputation_strategies.base import ImputationStrategyEnum
+from strata_fit_v6_imputation_py.imputation_strategies import ImputationStrategyEnum
 from pathlib import Path
 
 # get path of current directory
@@ -9,17 +9,14 @@ org_ids = [1,2,3]
 ## Mock client
 client = MockAlgorithmClient(
     datasets=[
-        # Data for first organization
         [{
             "database": data_directory / "data_times/alpha.csv",
             "db_type": "csv"
         }],
-        # Data for second organization
         [{
             "database": data_directory / "data_times/beta.csv",
             "db_type": "csv"
         }],
-        # Data for second organization
         [{
             "database": data_directory / "data_times/gamma.csv",
             "db_type": "csv"
@@ -29,11 +26,7 @@ client = MockAlgorithmClient(
     module="strata_fit_v6_imputation_py"
 )
 
-
-# list mock organizations
 organizations = client.organization.list()
-print(organizations)
-# org_ids = [organization["id"] for organization in organizations]
 columns = ["DAS28", "CRP", "ESR", "SJC28", "TJC28"]
 
 # Run the central method on 1 node and get the results
@@ -43,7 +36,7 @@ central_task = client.task.create(
         "kwargs": {
             "columns" : columns,
             "organizations_to_include" : org_ids,
-            "imputation_strategy" : ImputationStrategyEnum.MEAN
+            "imputation_strategy" : ImputationStrategyEnum.MeanImputer
         }
     },
     organizations=[org_ids[0]],

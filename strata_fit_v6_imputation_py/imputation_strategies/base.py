@@ -1,13 +1,6 @@
 from abc import ABC, abstractmethod
 import pandas as pd
 from typing import Dict, Any, List, Type
-from enum import Enum
-
-class ImputationStrategyEnum(str, Enum):
-    MEAN = "MeanImputer"
-    MODE = "ModeImputer"
-    # TODO
-    # other strategies
 
 STRATEGY_REGISTRY: Dict[str, Type['ImputationStrategy']] = {}
 
