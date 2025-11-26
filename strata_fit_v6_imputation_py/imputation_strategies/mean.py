@@ -2,10 +2,10 @@ from typing import Any, Dict, List
 import pandas as pd
 import polars as pl
 import polars.selectors as cs
-from .base import ImputationStrategy
+from .base import ImputationStrategy, register_imputation_strategy, ImputationStrategyEnum
 from strata_fit_v6_imputation_py.utils import stack_results
 
-@ImputationStrategy.register
+@register_imputation_strategy(ImputationStrategyEnum.MEAN_IMPUTER)
 class MeanImputer(ImputationStrategy):
 
     def compute(self, df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:

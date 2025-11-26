@@ -1,5 +1,5 @@
 from vantage6.algorithm.tools.mock_client import MockAlgorithmClient
-from strata_fit_v6_imputation_py.imputation_strategies import ImputationStrategyEnum
+from strata_fit_v6_imputation_py.imputation_strategies.base import ImputationStrategyEnum
 from pathlib import Path
 
 # get path of current directory
@@ -36,7 +36,7 @@ central_task = client.task.create(
         "kwargs": {
             "columns" : columns,
             "organizations_to_include" : org_ids,
-            "imputation_strategy" : ImputationStrategyEnum.MeanImputer
+            "imputation_strategy" : ImputationStrategyEnum.MEAN_IMPUTER
         }
     },
     organizations=[org_ids[0]],
