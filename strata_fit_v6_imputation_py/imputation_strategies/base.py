@@ -40,7 +40,7 @@ class ImputationStrategy(ABC):
         pass
 
     @abstractmethod
-    def aggregate(self, node_metrics: List[Dict[Any, Any]], columns: List[str]) -> pd.DataFrame:
+    def aggregate(self, node_metrics: List[Dict[Any, Any]], columns: List[str]) -> Dict:
         """aggregates node metrics into global metrics
 
         Args:

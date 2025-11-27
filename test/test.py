@@ -43,5 +43,5 @@ central_task = client.task.create(
 )
 
 results = client.wait_for_results(central_task.get("id"))
-
+print(results)
 

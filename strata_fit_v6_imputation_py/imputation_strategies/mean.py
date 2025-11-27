@@ -23,7 +23,7 @@ class MeanImputer(ImputationStrategy):
         df = df.fillna(impute_vals)
         return df
     
-    def aggregate(self, node_metrics: List[Dict[Any, Any]], columns: List[str]) -> Any:
+    def aggregate(self, node_metrics: List[Dict[Any, Any]], columns: List[str]) -> Dict:
         dfpl = pl.from_pandas(stack_results(node_metrics))
         # simplest averaging
         global_weighted_mean = cs.by_name(columns).mul("n").sum().truediv(pl.col("n").sum())
@@ -31,5 +31,4 @@ class MeanImputer(ImputationStrategy):
         df = dfpl.with_columns(
             global_weighted_mean
         ).slice(0, 1).drop("pat_ID", "n").to_pandas()
-
         return df.to_dict()

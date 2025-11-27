@@ -66,7 +66,7 @@ def central(
     
     info("Imputation done!")
 
-    return imputed_results
+    return [global_metrics]
 
 def _start_partial_and_collect_results(
     client: AlgorithmClient,
