@@ -47,7 +47,7 @@ class ImputationStrategy(ABC):
             df (pd.DataFrame): dataframe of means from all nodes        
 
         Returns:
-            pd.DataFrame: a pandas dataframe with global mean per ID and column
+            Dict: a dictionary with global mean per ID and column
         """
         pass
 
