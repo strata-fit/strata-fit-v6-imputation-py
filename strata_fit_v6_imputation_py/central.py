@@ -51,20 +51,6 @@ def central(
 
     info("Computing global metrics")
     global_metrics = STRATEGY_REGISTRY[imputation_strategy.value]().aggregate(node_metrics=node_metrics, columns=columns)
-    
-    info("Sending global metrics for imputation")
-    imputed_results = _start_partial_and_collect_results(
-        client,
-        input = {
-        "method" : "partial_impute",
-            "kwargs" : {
-                "imputation_strategy" : imputation_strategy,
-                "global_metrics" : global_metrics
-            }
-        },
-        organizations_to_include = organizations_to_include)
-    
-    info("Imputation done!")
 
     return [global_metrics]
 
