@@ -35,36 +35,3 @@ def _partial_compute(
     result = imputer.compute(df1, columns)
 
     return result.to_dict()
-
-
-@data(1)
-def partial_impute(
-    df1: pd.DataFrame,
-    global_metrics: Dict,
-    imputation_strategy: ImputationStrategyEnum = ImputationStrategyEnum.MEAN_IMPUTER
-) -> Dict[Hashable, Any]:
-    """impute global metrics into node data
-
-    Args:
-        df1 (pd.DataFrame): node data
-        columns (List[str]): columns to impute
-        global_metrics (List[Dict[Any, Any]]): global imputation values
-
-    Returns:
-        List[Dict[Any, Any]]: imputed data
-    """
-    return _partial_impute(df1, global_metrics, imputation_strategy)
-
-
-def _partial_impute(
-    df1: pd.DataFrame,
-    global_metrics: Dict,
-    imputation_strategy: ImputationStrategyEnum = ImputationStrategyEnum.MEAN_IMPUTER
-) -> Dict[Hashable, Any]:
-    
-    imputer = STRATEGY_REGISTRY[imputation_strategy]()
-    info("imputing global metrics into local node data")
-
-    result = imputer.impute(df1, global_metrics)
-
-    return result.to_dict()
