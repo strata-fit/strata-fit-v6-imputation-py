@@ -4,9 +4,9 @@ from enum import Enum
 from typing import Dict, Any, List, Type
 
 class ImputationStrategyEnum(str, Enum):  
-    MEAN_IMPUTER = "mean_imputer"  
-    MEDIAN_IMPUTER = "median_imputer"  
-    CONSTANT_IMPUTER = "constant_imputer"
+    MEAN_IMPUTER = "mean"  
+    MEDIAN_IMPUTER = "median"  
+    CONSTANT_IMPUTER = "constant"
 
 
 def register_imputation_strategy(key: ImputationStrategyEnum):  

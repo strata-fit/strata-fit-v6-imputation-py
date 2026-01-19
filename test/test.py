@@ -29,14 +29,23 @@ client = MockAlgorithmClient(
 organizations = client.organization.list()
 columns = ["DAS28", "CRP", "ESR", "SJC28", "TJC28"]
 
+imputation_config = {
+    "schema_version" : 1,
+    "strategy" : "mean",
+    "parameters" : {
+        "columns" : columns
+    }
+}
+
 # Run the central method on 1 node and get the results
 central_task = client.task.create(
     input_={
         "method":"central",
         "kwargs": {
-            "columns" : columns,
             "organizations_to_include" : org_ids,
-            "imputation_strategy" : ImputationStrategyEnum.MEAN_IMPUTER
+            "imputation_config" : imputation_config
+            # "columns" : columns,
+            # "imputation_strategy" : ImputationStrategyEnum.MEAN_IMPUTER
         }
     },
     organizations=[org_ids[0]],

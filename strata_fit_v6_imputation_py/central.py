@@ -4,15 +4,16 @@ from vantage6.algorithm.tools.decorators import algorithm_client
 from vantage6.algorithm.client import AlgorithmClient
 from vantage6.algorithm.tools.exceptions import PrivacyThresholdViolation
 from .imputation_strategies.base import STRATEGY_REGISTRY
-from enum import Enum
+from strata_fit_v6_imputation_py.imputation_strategies.base import ImputationStrategyEnum
 
 MINIMUM_ORGANIZATIONS = 3
 
 @algorithm_client
 def central(
     client: AlgorithmClient,
-    columns: List[str],
-    imputation_strategy: Enum,
+    # columns: List[str],
+    # imputation_strategy: Enum,
+    imputation_config: Dict[str, Any],
     organizations_to_include: Optional[List[int]] = None
 ) -> List[Dict[Any, Any]]:
     """central orchestration of federated imputation
@@ -35,6 +36,9 @@ def central(
 
     if len(organizations_to_include) < MINIMUM_ORGANIZATIONS:
         raise PrivacyThresholdViolation(f"Minimum number of organizations not met (required: {MINIMUM_ORGANIZATIONS}).")
+    
+    imputation_strategy = ImputationStrategyEnum(imputation_config["strategy"])
+    columns = imputation_config["parameters"]["columns"]
 
     node_metrics = _start_partial_and_collect_results(
         client, 
@@ -50,7 +54,7 @@ def central(
     info("Results obtained!")
 
     info("Computing global metrics")
-    global_metrics = STRATEGY_REGISTRY[imputation_strategy.value]().aggregate(node_metrics=node_metrics, columns=columns)
+    global_metrics = STRATEGY_REGISTRY[imputation_strategy]().aggregate(node_metrics=node_metrics, columns=columns)
 
     return [global_metrics]
 
