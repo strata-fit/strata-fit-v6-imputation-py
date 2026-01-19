@@ -5,6 +5,7 @@ from vantage6.algorithm.client import AlgorithmClient
 from vantage6.algorithm.tools.exceptions import PrivacyThresholdViolation
 from .imputation_strategies.base import STRATEGY_REGISTRY
 from strata_fit_v6_imputation_py.imputation_strategies.base import ImputationStrategyEnum
+from .utils import build_imputation_model_config
 
 MINIMUM_ORGANIZATIONS = 3
 
@@ -15,7 +16,7 @@ def central(
     # imputation_strategy: Enum,
     imputation_config: Dict[str, Any],
     organizations_to_include: Optional[List[int]] = None
-) -> List[Dict[Any, Any]]:
+) -> Dict[Any, Any]:
     """central orchestration of federated imputation
 
     Args:
@@ -56,7 +57,18 @@ def central(
     info("Computing global metrics")
     global_metrics = STRATEGY_REGISTRY[imputation_strategy]().aggregate(node_metrics=node_metrics, columns=columns)
 
-    return [global_metrics]
+    n_orgs = len(node_metrics)
+
+    imputation_model_config = build_imputation_model_config(
+        strategy=imputation_strategy.value,
+        parameters={
+            "columns" : columns
+        },
+        state=global_metrics,
+        n_organizations=n_orgs
+    )
+
+    return imputation_model_config
 
 def _start_partial_and_collect_results(
     client: AlgorithmClient,
