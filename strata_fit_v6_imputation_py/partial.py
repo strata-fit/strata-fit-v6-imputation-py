@@ -22,16 +22,10 @@ def partial_compute(
     Returns:
         Dict[Hashable, Any]:
     """
-    return _partial_compute(df1, columns, imputation_strategy)
-
-def _partial_compute(
-    df1: pd.DataFrame,
-    columns: List[str],
-    imputation_strategy: ImputationStrategyEnum = ImputationStrategyEnum.MEAN_IMPUTER
-) -> Dict[Hashable, Any]:
-    
     imputer = STRATEGY_REGISTRY[imputation_strategy]()
     info(f"Computing imputation metrics with strategy: {imputation_strategy.value}")
     result = imputer.compute(df1, columns)
 
     return result.to_dict()
+    
+    
