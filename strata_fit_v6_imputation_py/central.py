@@ -4,17 +4,19 @@ from vantage6.algorithm.tools.decorators import algorithm_client
 from vantage6.algorithm.client import AlgorithmClient
 from vantage6.algorithm.tools.exceptions import PrivacyThresholdViolation
 from .imputation_strategies.base import STRATEGY_REGISTRY
-from enum import Enum
+from strata_fit_v6_imputation_py.imputation_strategies.base import ImputationStrategyEnum
+from .utils import build_imputation_model_config
 
 MINIMUM_ORGANIZATIONS = 3
 
 @algorithm_client
 def central(
     client: AlgorithmClient,
-    columns: List[str],
-    imputation_strategy: Enum,
+    # columns: List[str],
+    # imputation_strategy: Enum,
+    imputation_config: Dict[str, Any],
     organizations_to_include: Optional[List[int]] = None
-) -> List[Dict[Any, Any]]:
+) -> Dict[Any, Any]:
     """central orchestration of federated imputation
 
     Args:
@@ -35,6 +37,9 @@ def central(
 
     if len(organizations_to_include) < MINIMUM_ORGANIZATIONS:
         raise PrivacyThresholdViolation(f"Minimum number of organizations not met (required: {MINIMUM_ORGANIZATIONS}).")
+    
+    imputation_strategy = ImputationStrategyEnum(imputation_config["strategy"])
+    columns = imputation_config["parameters"]["columns"]
 
     node_metrics = _start_partial_and_collect_results(
         client, 
@@ -50,23 +55,20 @@ def central(
     info("Results obtained!")
 
     info("Computing global metrics")
-    global_metrics = STRATEGY_REGISTRY[imputation_strategy.value]().aggregate(node_metrics=node_metrics, columns=columns)
-    
-    info("Sending global metrics for imputation")
-    imputed_results = _start_partial_and_collect_results(
-        client,
-        input = {
-        "method" : "partial_impute",
-            "kwargs" : {
-                "imputation_strategy" : imputation_strategy,
-                "global_metrics" : global_metrics
-            }
-        },
-        organizations_to_include = organizations_to_include)
-    
-    info("Imputation done!")
+    global_metrics = STRATEGY_REGISTRY[imputation_strategy]().aggregate(node_metrics=node_metrics, columns=columns)
 
-    return [global_metrics]
+    n_orgs = len(node_metrics)
+
+    imputation_model_config = build_imputation_model_config(
+        strategy=imputation_strategy.value,
+        parameters={
+            "columns" : columns
+        },
+        state=global_metrics,
+        n_organizations=n_orgs
+    )
+
+    return imputation_model_config
 
 def _start_partial_and_collect_results(
     client: AlgorithmClient,
