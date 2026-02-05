@@ -1,9 +1,9 @@
 # basic python3 image as base
-FROM harbor2.vantage6.ai/infrastructure/algorithm-base
+FROM harbor2.vantage6.ai/infrastructure/algorithm-base:4.13
 
 # This is a placeholder that should be overloaded by invoking
 # docker build with '--build-arg PKG_NAME=...'
-ARG PKG_NAME="strata-fit-v6-kmeans-py"
+ARG PKG_NAME="strata_fit_v6_imputation_py"
 
 # install federated algorithm
 COPY . /app
