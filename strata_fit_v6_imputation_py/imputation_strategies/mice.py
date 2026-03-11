@@ -96,29 +96,44 @@ class MiceImputer(ImputationStrategy):
     def impute(self, df: pd.DataFrame, global_metric: Dict) -> pd.DataFrame:
         """Standard MICE transform using global coefficients."""
         if not global_metric or "global_estimates" not in global_metric:
-            return df 
+            return df
+        
+        model_config = global_metric
 
-        # 1. Initialize the imputer
-        # We use a small max_iter because we are manually overriding the logic
-        imputer = IterativeImputer(estimator=BayesianRidge(), max_iter=1, random_state=42)
+        state = model_config['state']
+        params = model_config['parameters']
+        columns = params['columns']
+        global_estimates = state['global_estimates']
         
-        # 2. "Prime" the imputer so it builds the internal imputation_sequence_
-        # It needs to see the data structure to know how many estimators to create
-        imputer.fit(df.values) 
+        # Use the same max_iter as the training/central run
+        max_iter = params.get('max_iter', 20)
         
-        # 3. Surgical injection of global weights
-        for i, step_meta in enumerate(global_metric["global_estimates"]):
-            # Index [2] is the estimator (the BayesianRidge model)
+        data = df[columns].copy().values
+        
+        # 1. Initialize with the same parameters as central
+        # We must match max_iter to ensure the chain converges similarly
+        imputer = IterativeImputer(estimator=BayesianRidge(), max_iter=max_iter, random_state=42)
+        
+        # 2. Prime the imputer
+        imputer.fit(data)
+        
+        # 3. Corrected Weight Injection: Match by feature index
+        # Create a lookup map for our federated estimates
+        fed_map = {est['feat_idx']: est for est in global_estimates}
+        
+        for i in range(len(imputer.imputation_sequence_)):
+            # The first element of the sequence tuple is the target feature index
+            target_feat_idx = imputer.imputation_sequence_[i][0]
             target_estimator = imputer.imputation_sequence_[i][2]
             
-            target_estimator.coef_ = np.array(step_meta["coef"])
-            target_estimator.intercept_ = step_meta["intercept"]
-            
-            # Sklearn estimators often need this flag to realize they are "fitted"
-            # though BayesianRidge usually works fine without it after coef_ is set
-            target_estimator.fitted_ = True 
-
-        # 4. Perform the actual imputation
-        imputed_values = imputer.transform(df.values)
+            if target_feat_idx in fed_map:
+                est_data = fed_map[target_feat_idx]
+                target_estimator.coef_ = np.array(est_data['coef'])
+                target_estimator.intercept_ = est_data['intercept']
+                # BayesianRidge specifically needs this flag set to True
+                target_estimator.fitted_ = True 
         
-        return pd.DataFrame(imputed_values, columns=df.columns, index=df.index)
+        # 4. Transform
+        imputed_values = imputer.transform(data)
+        
+        return pd.DataFrame(imputed_values, columns=columns, index=df.index)
