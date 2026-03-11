@@ -67,37 +67,7 @@ def central(
 
     # --- START ITERATIONS ---
     # Store the means in our state dictionary so they can be passed to the nodes
-    global_metrics = {"initial_means": global_means}
-
-    # node_metrics = _start_partial_and_collect_results(
-    #     client, 
-    #     input = {
-    #     "method": "partial_compute",
-    #         "kwargs": {
-    #             "columns" : columns,
-    #             "imputation_strategy" : imputation_strategy
-    #         }
-    #     },
-    #     organizations_to_include=organizations_to_include)
-    
-    # info("Results obtained!")
-
-    # info("Computing global metrics")
-    # global_metrics = STRATEGY_REGISTRY[imputation_strategy]().aggregate(node_metrics=node_metrics, columns=columns)
-
-    # n_orgs = len(node_metrics)
-
-    # imputation_model_config = build_imputation_model_config(
-    #     strategy=imputation_strategy.value,
-    #     parameters={
-    #         "columns" : columns
-    #     },
-    #     state=global_metrics,
-    #     n_organizations=n_orgs
-    # )
-
-
-
+    global_state = {"initial_means": global_means}
     max_rounds = imputation_config["parameters"].get("max_iter", 5)
 
     for round_num in range(max_rounds):
@@ -110,29 +80,29 @@ def central(
                 "kwargs": {
                     "columns": columns,
                     "imputation_strategy": imputation_strategy,
-                    "global_state": global_metrics # Pass the previous round's results
+                    "global_state": global_state  # Always pass the full state
                 }
             },
             organizations_to_include=organizations_to_include
         )
         
-        # Aggregate local models into a new global model
-        global_metrics = STRATEGY_REGISTRY[imputation_strategy]().aggregate(
+        # Aggregate to get new coefficients
+        new_estimates = STRATEGY_REGISTRY[imputation_strategy]().aggregate(
             node_metrics=node_results, 
-            columns=columns,
-            # global_means=global_metrics
+            columns=columns
         )
+        
+        # KEY FIX: Update the state, don't overwrite it. 
+        # This preserves 'initial_means' for the nodes to use in Round 2, 3, etc.
+        global_state.update(new_estimates)
 
-
-    imputation_model_config = build_imputation_model_config(
+    # Return the final state containing both the means and the refined coefficients
+    return build_imputation_model_config(
         strategy=imputation_strategy.value,
         parameters=imputation_config["parameters"],
-        state=global_metrics,
+        state=global_state,
         n_organizations=len(organizations_to_include)
     )
-
-
-    return imputation_model_config
 
 def _start_partial_and_collect_results(
     client: AlgorithmClient,

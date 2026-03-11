@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
+from sklearn.linear_model import BayesianRidge
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
-from sklearn.linear_model import BayesianRidge
 from typing import List, Dict, Any
 from .base import ImputationStrategy, register_imputation_strategy, ImputationStrategyEnum
 
@@ -12,54 +12,83 @@ class MiceImputer(ImputationStrategy):
     def compute(self, df: pd.DataFrame, columns: List[str], global_state: Dict = None) -> Dict:
         data_work = df[columns].copy()
         
-        # MANDATORY: Fill NaNs with Global Means before fitting
-        # This prevents "Local Mean Bias" from ruining the first round of regressions
-        if global_state and "initial_means" in global_state:
-            for col, mean_val in global_state["initial_means"].items():
-                data_work[col] = data_work[col].fillna(mean_val)
-        
-        # Now, even with max_iter=1, the regression starts from a 'Globally' 
-        # consistent baseline.
-        imputer = IterativeImputer(
-            estimator=BayesianRidge(), 
-            max_iter=1, 
-            random_state=42
-        )
-        
-        imputer.fit(data_work.values)
-        
-        # 3. EXTRACT (Same as before, with type casting)
-        estimates = []
-        for step in imputer.imputation_sequence_:
-            estimates.append({
-                "feat_idx": int(step[0]),
-                "neighbor_indices": [int(idx) for idx in step[1]],
-                "coef": [float(c) for c in step[2].coef_],
-                "intercept": float(step[2].intercept_),
+        # 1. Base Initialization (Global Means)
+        # This prevents NaNs from poisoning the matrix math
+        means = global_state.get("initial_means", {})
+        for col in columns:
+            if col in means:
+                data_work[col] = data_work[col].fillna(means[col])
+            else:
+                # Fallback safety: fill with 0 if mean is somehow missing
+                data_work[col] = data_work[col].fillna(0.0)
+
+        # 2. Refine Imputations (Feedback Loop)
+        # If we have coefficients from the PREVIOUS round, use them to update our X
+        if "global_estimates" in global_state:
+            for est in global_state["global_estimates"]:
+                target_col = columns[est["feat_idx"]]
+                missing_mask = df[target_col].isna()
+                
+                if missing_mask.any():
+                    # Predict values using previous round's Beta
+                    X_cols = [columns[idx] for idx in est["neighbor_indices"]]
+                    X_missing = data_work.loc[missing_mask, X_cols].values
+                    X_missing = np.hstack([np.ones((X_missing.shape[0], 1)), X_missing])
+                    
+                    beta = np.array([est["intercept"]] + est["coef"])
+                    data_work.loc[missing_mask, target_col] = X_missing @ beta
+
+        # 3. Compute Sufficient Statistics for the NEXT round
+        stats_per_column = []
+        for i, target_col in enumerate(columns):
+            observed_mask = df[target_col].notna()
+            if not observed_mask.any():
+                continue
+
+            y = df.loc[observed_mask, target_col].values
+            X_cols = [c for c in columns if c != target_col]
+            X = data_work.loc[observed_mask, X_cols].values
+            X = np.hstack([np.ones((X.shape[0], 1)), X])
+
+            stats_per_column.append({
+                "feat_idx": i,
+                "xtx": (X.T @ X).tolist(),
+                "xty": (X.T @ y).tolist(),
+                "n_obs": int(len(y))
             })
-            
-        return {"estimates": estimates, "n_samples": int(len(df))}
+
+        return {"column_stats": stats_per_column}
 
     def aggregate(self, node_metrics: List[Dict], columns: List[str]) -> Dict:
-        """Averages coefficients from all nodes."""
-        total_n = sum(node['n_samples'] for node in node_metrics)
-        first_node_estimates = node_metrics[0]['estimates']
         global_estimates = []
-
-        for i in range(len(first_node_estimates)):
-            avg_coef = np.zeros_like(first_node_estimates[i]['coef'], dtype=float)
-            avg_intercept = 0.0
+        
+        # Identify which columns were actually processed
+        processed_indices = {s["feat_idx"] for n in node_metrics for s in n["column_stats"]}
+        
+        for feat_idx in sorted(list(processed_indices)):
+            # Sum up stats across nodes for this specific column
+            dim = len(columns) # Total columns including intercept
+            global_xtx = None
+            global_xty = None
             
             for node in node_metrics:
-                weight = node['n_samples'] / total_n
-                avg_coef += np.array(node['estimates'][i]['coef']) * weight
-                avg_intercept += node['estimates'][i]['intercept'] * weight
-            
+                stat = next((s for s in node["column_stats"] if s["feat_idx"] == feat_idx), None)
+                if stat:
+                    xtx_local = np.array(stat["xtx"])
+                    xty_local = np.array(stat["xty"])
+                    global_xtx = xtx_local if global_xtx is None else global_xtx + xtx_local
+                    global_xty = xty_local if global_xty is None else global_xty + xty_local
+
+            # Solve (XTX + ridge) * beta = XTy
+            ridge = 1e-6
+            global_xtx += np.eye(global_xtx.shape[0]) * ridge
+            beta = np.linalg.solve(global_xtx, global_xty)
+
             global_estimates.append({
-                "feat_idx": first_node_estimates[i]['feat_idx'],
-                "neighbor_indices": first_node_estimates[i]['neighbor_indices'],
-                "coef": avg_coef.tolist(),
-                "intercept": avg_intercept
+                "feat_idx": feat_idx,
+                "neighbor_indices": [i for i in range(len(columns)) if i != feat_idx],
+                "coef": beta[1:].tolist(),
+                "intercept": float(beta[0])
             })
 
         return {"global_estimates": global_estimates}
