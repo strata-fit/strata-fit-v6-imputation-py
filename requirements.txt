@@ -1,4 +1,4 @@
 pydantic
-v6-federated-core
+v6-federated-algo-core-py @ git+https://github.com/mdw-nl/v6-federated-algo-core-v6.git@c3c23c1b70a4a5cc4283ddf6e38bfdd3d4a08a73
 vantage6-algorithm-tools
 pandas

@@ -6,7 +6,7 @@ dependencies = [
     "polars>=1.35.2",
     "pydantic>=2,<3",
     "pyarrow>=22.0.0",
-    "v6-federated-core>=0.1.0",
+    "v6-federated-algo-core-py @ git+https://github.com/mdw-nl/v6-federated-algo-core-v6.git@c3c23c1b70a4a5cc4283ddf6e38bfdd3d4a08a73",
     "vantage6>=4.13.1",
     "vantage6-algorithm-tools>=4.13.1",
 ]
