@@ -7,6 +7,7 @@ class ImputationStrategyEnum(str, Enum):
     MEAN_IMPUTER = "mean"  
     MEDIAN_IMPUTER = "median"  
     CONSTANT_IMPUTER = "constant"
+    MICE_IMPUTER = "mice"
 
 
 def register_imputation_strategy(key: ImputationStrategyEnum):  
@@ -27,7 +28,7 @@ def register_imputation_strategy(key: ImputationStrategyEnum):
 class ImputationStrategy(ABC):
 
     @abstractmethod
-    def compute(self, df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
+    def compute(self, df: pd.DataFrame, columns: List[str], global_state: Dict[str, Any] | None = None) -> pd.DataFrame | Dict:
         """compute imputation metric
 
         Args:
@@ -40,7 +41,7 @@ class ImputationStrategy(ABC):
         pass
 
     @abstractmethod
-    def aggregate(self, node_metrics: List[Dict[Any, Any]], columns: List[str]) -> Dict:
+    def aggregate(self, node_metrics: List[Dict[Any, Any]], columns: List[str], global_means: Dict = None) -> Dict:
         """aggregates node metrics into global metrics
 
         Args:

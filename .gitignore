@@ -108,4 +108,6 @@ venv.bak/
 # manual
 .copier-answers.yml
 *.csv
+*.ipynb
 uv.lock
+validate.py

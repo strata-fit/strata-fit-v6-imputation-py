@@ -31,9 +31,10 @@ columns = ["DAS28", "CRP", "ESR", "SJC28", "TJC28"]
 
 imputation_config = {
     "schema_version" : 1,
-    "strategy" : "mean",
+    "strategy" : "mice",
     "parameters" : {
-        "columns" : columns
+        "columns" : columns,
+        "max_iter" : 20
     }
 }
 

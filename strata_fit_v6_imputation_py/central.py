@@ -41,34 +41,68 @@ def central(
     imputation_strategy = ImputationStrategyEnum(imputation_config["strategy"])
     columns = imputation_config["parameters"]["columns"]
 
-    node_metrics = _start_partial_and_collect_results(
-        client, 
-        input = {
-        "method": "partial_compute",
-            "kwargs": {
-                "columns" : columns,
-                "imputation_strategy" : imputation_strategy
-            }
-        },
-        organizations_to_include=organizations_to_include)
+    # --- ROUND 0: Global Mean Calculation ---
+    info("Round 0: Calculating Global Means for initialization...")
     
-    info("Results obtained!")
-
-    info("Computing global metrics")
-    global_metrics = STRATEGY_REGISTRY[imputation_strategy]().aggregate(node_metrics=node_metrics, columns=columns)
-
-    n_orgs = len(node_metrics)
-
-    imputation_model_config = build_imputation_model_config(
-        strategy=imputation_strategy.value,
-        parameters={
-            "columns" : columns
+    sum_results = _start_partial_and_collect_results(
+        client,
+        input={
+            "method": "get_local_sums",
+            "kwargs": {"columns": columns}
         },
-        state=global_metrics,
-        n_organizations=n_orgs
+        organizations_to_include=organizations_to_include
     )
 
-    return imputation_model_config
+    global_means = {}
+    for col in columns:
+        total_sum = sum(node[col]["sum"] for node in sum_results)
+        total_count = sum(node[col]["count"] for node in sum_results)
+        
+        if total_count > 0:
+            global_means[col] = total_sum / total_count
+        else:
+            global_means[col] = 0.0
+            
+    info(f"Global Means calculated: {global_means}")
+
+    # --- START ITERATIONS ---
+    # Store the means in our state dictionary so they can be passed to the nodes
+    global_state = {"initial_means": global_means}
+    max_rounds = imputation_config["parameters"].get("max_iter", 5)
+
+    for round_num in range(max_rounds):
+        info(f"--- Starting Round {round_num + 1}/{max_rounds} ---")
+        
+        node_results = _start_partial_and_collect_results(
+            client, 
+            input={
+                "method": "partial_compute",
+                "kwargs": {
+                    "columns": columns,
+                    "imputation_strategy": imputation_strategy,
+                    "global_state": global_state  # Always pass the full state
+                }
+            },
+            organizations_to_include=organizations_to_include
+        )
+        
+        # Aggregate to get new coefficients
+        new_estimates = STRATEGY_REGISTRY[imputation_strategy]().aggregate(
+            node_metrics=node_results, 
+            columns=columns
+        )
+        
+        # KEY FIX: Update the state, don't overwrite it. 
+        # This preserves 'initial_means' for the nodes to use in Round 2, 3, etc.
+        global_state.update(new_estimates)
+
+    # Return the final state containing both the means and the refined coefficients
+    return build_imputation_model_config(
+        strategy=imputation_strategy.value,
+        parameters=imputation_config["parameters"],
+        state=global_state,
+        n_organizations=len(organizations_to_include)
+    )
 
 def _start_partial_and_collect_results(
     client: AlgorithmClient,
