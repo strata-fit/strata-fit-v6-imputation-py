@@ -95,10 +95,13 @@ class MiceImputer(ImputationStrategy):
 
     def impute(self, df: pd.DataFrame, global_metric: Dict) -> pd.DataFrame:
         """Standard MICE transform using global coefficients."""
-        if not global_metric or "global_estimates" not in global_metric:
+        if not global_metric or not isinstance(global_metric, List):
             return df
         
-        model_config = global_metric
+        if isinstance(global_metric, List):
+            model_config = global_metric[0]
+        else:
+            model_config = global_metric
 
         state = model_config['state']
         params = model_config['parameters']
@@ -106,7 +109,7 @@ class MiceImputer(ImputationStrategy):
         global_estimates = state['global_estimates']
         
         # Use the same max_iter as the training/central run
-        max_iter = params.get('max_iter', 20)
+        max_iter = params['max_iter']
         
         data = df[columns].copy().values
         
