@@ -8,7 +8,13 @@ from strata_fit_v6_imputation_py.utils import stack_results
 @register_imputation_strategy(ImputationStrategyEnum.MEAN_IMPUTER)
 class MeanImputer(ImputationStrategy):
 
-    def compute(self, df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
+    def compute(
+        self,
+        df: pd.DataFrame,
+        columns: List[str],
+        global_state: Dict[str, Any] | None = None,
+    ) -> pd.DataFrame:
+        del global_state
         dfpl = pl.from_pandas(df)
 
         dfpl = dfpl.group_by("pat_ID").agg(
@@ -23,7 +29,13 @@ class MeanImputer(ImputationStrategy):
         df = df.fillna(impute_vals)
         return df
     
-    def aggregate(self, node_metrics: List[Dict[Any, Any]], columns: List[str]) -> Dict:
+    def aggregate(
+        self,
+        node_metrics: List[Dict[Any, Any]],
+        columns: List[str],
+        global_means: Dict[str, Any] | None = None,
+    ) -> Dict:
+        del global_means
         dfpl = pl.from_pandas(stack_results(node_metrics))
         # simplest averaging
         global_weighted_mean = cs.by_name(columns).mul("n").sum().truediv(pl.col("n").sum())

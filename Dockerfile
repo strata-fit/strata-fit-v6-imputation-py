@@ -5,6 +5,11 @@ FROM harbor2.vantage6.ai/infrastructure/algorithm-base:4.13
 # docker build with '--build-arg PKG_NAME=...'
 ARG PKG_NAME="strata_fit_v6_imputation_py"
 
+# Required for pip to install git-based pinned dependencies.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 # install federated algorithm
 COPY . /app
 RUN pip install /app
