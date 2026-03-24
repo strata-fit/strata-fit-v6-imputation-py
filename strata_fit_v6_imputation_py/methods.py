@@ -14,11 +14,19 @@ from v6_federated_core import (
     PolicyScope,
 )
 
-from .contracts import CentralInput, CentralOutput, PartialComputeInput, PartialComputeOutput
-from .imputation_strategies.base import STRATEGY_REGISTRY
+from .contracts import (
+    CentralInput,
+    CentralOutput,
+    LocalSumsInput,
+    LocalSumsOutput,
+    PartialComputeInput,
+    PartialComputeOutput,
+)
+from .imputation_strategies.base import ImputationStrategyEnum, STRATEGY_REGISTRY
 from .utils import build_imputation_model_config
 
 MINIMUM_ORGANIZATIONS = 3
+DEFAULT_MICE_MAX_ITER = 5
 
 
 def _get_client(context: MethodContext) -> AlgorithmClient:
@@ -68,6 +76,32 @@ def _run_partial_task(
     return _ensure_partial_results(results)
 
 
+def _compute_global_means(
+    sum_results: List[Dict[str, Dict[str, float | int]]],
+    columns: List[str],
+) -> Dict[str, float]:
+    global_means: Dict[str, float] = {}
+    for column in columns:
+        total_sum = sum(
+            float(node.get(column, {}).get("sum", 0.0)) for node in sum_results
+        )
+        total_count = sum(
+            int(node.get(column, {}).get("count", 0)) for node in sum_results
+        )
+        global_means[column] = (total_sum / total_count) if total_count > 0 else 0.0
+    return global_means
+
+
+def _build_model_parameters(
+    columns: List[str],
+    max_iter: Optional[int] = None,
+) -> Dict[str, Any]:
+    parameters: Dict[str, Any] = {"columns": columns}
+    if max_iter is not None:
+        parameters["max_iter"] = max_iter
+    return parameters
+
+
 def central_handler(
     data: CentralInput,
     context: Optional[MethodContext] = None,
@@ -80,6 +114,56 @@ def central_handler(
 
     imputation_strategy = data.imputation_config.strategy
     columns = data.imputation_config.parameters.columns
+
+    if imputation_strategy == ImputationStrategyEnum.MICE_IMPUTER:
+        info("Round 0: calculating global means for MICE initialization")
+        sum_results = _run_partial_task(
+            client,
+            input_={
+                "method": "get_local_sums",
+                "kwargs": {
+                    "columns": columns,
+                },
+            },
+            organization_ids=organization_ids,
+        )
+        global_state: Dict[str, Any] = {
+            "initial_means": _compute_global_means(sum_results, columns)
+        }
+        max_rounds = (
+            data.imputation_config.parameters.max_iter
+            or DEFAULT_MICE_MAX_ITER
+        )
+        imputer = STRATEGY_REGISTRY[imputation_strategy]()
+
+        for round_num in range(max_rounds):
+            info(f"Starting MICE round {round_num + 1}/{max_rounds}")
+            node_metrics = _run_partial_task(
+                client,
+                input_={
+                    "method": "partial_compute",
+                    "kwargs": {
+                        "columns": columns,
+                        "imputation_strategy": imputation_strategy,
+                        "global_state": global_state,
+                    },
+                },
+                organization_ids=organization_ids,
+            )
+            global_state.update(
+                imputer.aggregate(
+                    node_metrics=node_metrics,
+                    columns=columns,
+                )
+            )
+
+        return build_imputation_model_config(
+            strategy=imputation_strategy.value,
+            parameters=_build_model_parameters(columns, max_iter=max_rounds),
+            state=global_state,
+            n_organizations=len(organization_ids),
+            schema_version=data.imputation_config.schema_version,
+        )
 
     node_metrics = _run_partial_task(
         client,
@@ -102,7 +186,10 @@ def central_handler(
 
     return build_imputation_model_config(
         strategy=imputation_strategy.value,
-        parameters={"columns": columns},
+        parameters=_build_model_parameters(
+            columns,
+            max_iter=data.imputation_config.parameters.max_iter,
+        ),
         state=global_metrics,
         n_organizations=len(node_metrics),
         schema_version=data.imputation_config.schema_version,
@@ -119,7 +206,31 @@ def partial_compute_handler(
     df = _get_dataframe(context)
     imputer = STRATEGY_REGISTRY[data.imputation_strategy]()
     info(f"Computing imputation metrics with strategy: {data.imputation_strategy.value}")
-    return imputer.compute(df, data.columns).to_dict()
+    metrics = imputer.compute(df, data.columns, global_state=data.global_state)
+    if isinstance(metrics, pd.DataFrame):
+        return metrics.to_dict()
+    return metrics
+
+
+def get_local_sums_handler(
+    data: LocalSumsInput,
+    context: Optional[MethodContext] = None,
+) -> Dict[str, Dict[str, float | int]]:
+    if context is None:
+        raise RuntimeError("Method context is required for the local sums handler")
+
+    df = _get_dataframe(context)
+    results: Dict[str, Dict[str, float | int]] = {}
+    for column in data.columns:
+        if column in df.columns:
+            series = df[column].dropna()
+            results[column] = {
+                "sum": float(series.sum()),
+                "count": int(series.count()),
+            }
+        else:
+            results[column] = {"sum": 0.0, "count": 0}
+    return results
 
 
 METHOD_REGISTRY = MethodRegistry(
@@ -135,6 +246,12 @@ METHOD_REGISTRY = MethodRegistry(
             input_model=PartialComputeInput,
             output_model=PartialComputeOutput,
             handler=partial_compute_handler,
+        ),
+        MethodSpec(
+            name="get_local_sums",
+            input_model=LocalSumsInput,
+            output_model=LocalSumsOutput,
+            handler=get_local_sums_handler,
         ),
     ]
 )

@@ -97,6 +97,42 @@ def test_imputation_central_end_to_end() -> None:
     assert result["metadata"]["n_organizations"] == 3
     assert "state" in result and result["state"]
 
+def test_imputation_central_mice_end_to_end() -> None:
+    client = build_client()
+    org_ids = [org["id"] for org in client.organization.list()]
+    columns = ["DAS28", "CRP", "ESR", "SJC28", "TJC28"]
+
+    central_task = client.task.create(
+        input_={
+            "method": "central",
+            "kwargs": {
+                "organizations_to_include": org_ids,
+                "imputation_config": {
+                    "schema_version": 1,
+                    "strategy": "mice",
+                    "parameters": {
+                        "columns": columns,
+                        "max_iter": 3,
+                    },
+                },
+            },
+        },
+        organizations=[org_ids[0]],
+    )
+
+    result = client.result.get(central_task["id"])
+
+    assert result["type"] == "imputation"
+    assert result["strategy"] == "mice"
+    assert result["fitted"] is True
+    assert result["schema_version"] == 1
+    assert result["parameters"]["columns"] == columns
+    assert result["parameters"]["max_iter"] == 3
+    assert result["metadata"]["n_organizations"] == 3
+    assert "initial_means" in result["state"]
+    assert "global_estimates" in result["state"]
+    assert isinstance(result["state"]["global_estimates"], list)
 
 if __name__ == "__main__":
     test_imputation_central_end_to_end()
+    test_imputation_central_mice_end_to_end()
