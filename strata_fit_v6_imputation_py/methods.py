@@ -206,10 +206,7 @@ def partial_compute_handler(
     df = _get_dataframe(context)
     imputer = STRATEGY_REGISTRY[data.imputation_strategy]()
     info(f"Computing imputation metrics with strategy: {data.imputation_strategy.value}")
-    metrics = imputer.compute(df, data.columns, global_state=data.global_state)
-    if isinstance(metrics, pd.DataFrame):
-        return metrics.to_dict()
-    return metrics
+    return imputer.compute(df, data.columns, global_state=data.global_state)
 
 
 def get_local_sums_handler(
