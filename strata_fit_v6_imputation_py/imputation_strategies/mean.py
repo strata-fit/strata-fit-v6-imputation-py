@@ -1,9 +1,12 @@
 from typing import Any, Dict, List
+
 import pandas as pd
 import polars as pl
 import polars.selectors as cs
+
 from .base import ImputationStrategy, register_imputation_strategy, ImputationStrategyEnum
 from strata_fit_v6_imputation_py.utils import stack_results
+
 
 @register_imputation_strategy(ImputationStrategyEnum.MEAN_IMPUTER)
 class MeanImputer(ImputationStrategy):
@@ -13,7 +16,7 @@ class MeanImputer(ImputationStrategy):
         df: pd.DataFrame,
         columns: List[str],
         global_state: Dict[str, Any] | None = None,
-    ) -> pd.DataFrame:
+    ) -> Dict[str, Any]:
         del global_state
         dfpl = pl.from_pandas(df)
 
@@ -21,14 +24,13 @@ class MeanImputer(ImputationStrategy):
             cs.by_name(columns).mean(),
             pl.col("pat_ID").count().alias("n")
         )
-        # df = df.groupby("pat_ID")[columns].mean().reset_index()
-        return dfpl.to_pandas()
-    
+        return dfpl.to_pandas().to_dict()
+
     def impute(self, df: pd.DataFrame, global_metric: Dict) -> pd.DataFrame:
         impute_vals = {col: list(v.values())[0] for col, v in global_metric.items()}
         df = df.fillna(impute_vals)
         return df
-    
+
     def aggregate(
         self,
         node_metrics: List[Dict[Any, Any]],

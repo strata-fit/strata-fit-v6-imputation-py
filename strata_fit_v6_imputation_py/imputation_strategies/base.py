@@ -1,51 +1,65 @@
-from abc import ABC, abstractmethod
-import pandas as pd
 from enum import Enum
-from typing import Dict, Any, List, Type
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Type
 
-class ImputationStrategyEnum(str, Enum):  
-    MEAN_IMPUTER = "mean"  
-    MEDIAN_IMPUTER = "median"  
+import pandas as pd
+
+
+class ImputationStrategyEnum(str, Enum):
+    MEAN_IMPUTER = "mean"
+    MEDIAN_IMPUTER = "median"
     CONSTANT_IMPUTER = "constant"
     MICE_IMPUTER = "mice"
 
 
-def register_imputation_strategy(key: ImputationStrategyEnum):  
-    """  
-    Decorator: register `ImputationStrategy` subclasses under a given enum key.  
-    """  
-    def decorator(cls: Type[ImputationStrategy]) -> Type[ImputationStrategy]:
-        if not issubclass(cls, ImputationStrategy):  
-            raise TypeError(  
-                f"{cls.__name__} must inherit from ImputationStrategy "  
-                f"to be registered under {key}"  
-            )  
-        STRATEGY_REGISTRY[key] = cls  
-        return cls  
+def register_imputation_strategy(key: ImputationStrategyEnum):
+    """
+    Decorator: register `ImputationStrategy` subclasses under a given enum key.
+    """
 
-    return decorator 
+    def decorator(cls: Type[ImputationStrategy]) -> Type[ImputationStrategy]:
+        if not issubclass(cls, ImputationStrategy):
+            raise TypeError(
+                f"{cls.__name__} must inherit from ImputationStrategy "
+                f"to be registered under {key}"
+            )
+        STRATEGY_REGISTRY[key] = cls
+        return cls
+
+    return decorator
+
 
 class ImputationStrategy(ABC):
 
     @abstractmethod
-    def compute(self, df: pd.DataFrame, columns: List[str], global_state: Dict[str, Any] | None = None) -> pd.DataFrame | Dict:
+    def compute(
+        self,
+        df: pd.DataFrame,
+        columns: List[str],
+        global_state: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
         """compute imputation metric
 
         Args:
-            df (pd.DataFrame): pandas dataframe 
+            df (pd.DataFrame): pandas dataframe
             columns (List[str]): list of columns the metric should be computed for
 
         Returns:
-            pd.DataFrame: with ID and column means
+            Dict[str, Any]: JSON-serializable local metric payload
         """
         pass
 
     @abstractmethod
-    def aggregate(self, node_metrics: List[Dict[Any, Any]], columns: List[str], global_means: Dict = None) -> Dict:
+    def aggregate(
+        self,
+        node_metrics: List[Dict[Any, Any]],
+        columns: List[str],
+        global_means: Dict = None,
+    ) -> Dict:
         """aggregates node metrics into global metrics
 
         Args:
-            df (pd.DataFrame): dataframe of means from all nodes        
+            df (pd.DataFrame): dataframe of means from all nodes
 
         Returns:
             Dict: a dictionary with global mean per ID and column
