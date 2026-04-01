@@ -133,19 +133,19 @@ class MiceImputer(ImputationStrategy):
 
         return {"global_estimates": global_estimates}
 
-    def impute(self, df: pd.DataFrame, global_metric: Dict[str, Any]) -> pd.DataFrame:
+    def impute(self, df: pd.DataFrame, global_metric: Dict[str, Any]) -> Dict[str, Any]:
         if not global_metric:
-            return df
+            return df.to_dict()
 
         model_config = global_metric[0] if isinstance(global_metric, list) else global_metric
         if not isinstance(model_config, dict):
-            return df
+            return df.to_dict()
 
         state = model_config.get("state", {})
         params = model_config.get("parameters", {})
         columns = params.get("columns")
         if not isinstance(columns, list) or not columns:
-            return df
+            return df.to_dict()
 
         global_estimates = state.get("global_estimates", [])
         max_iter = int(params.get("max_iter", 5))
@@ -181,4 +181,4 @@ class MiceImputer(ImputationStrategy):
             estimator.fitted_ = True
 
         imputed_values = imputer.transform(data)
-        return pd.DataFrame(imputed_values, columns=columns, index=df.index)
+        return pd.DataFrame(imputed_values, columns=columns, index=df.index).to_dict()

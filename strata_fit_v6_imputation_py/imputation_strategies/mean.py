@@ -26,10 +26,10 @@ class MeanImputer(ImputationStrategy):
         )
         return dfpl.to_pandas().to_dict()
 
-    def impute(self, df: pd.DataFrame, global_metric: Dict) -> pd.DataFrame:
+    def impute(self, df: pd.DataFrame, global_metric: Dict) -> Dict[str, Any]:
         impute_vals = {col: list(v.values())[0] for col, v in global_metric.items()}
         df = df.fillna(impute_vals)
-        return df
+        return df.to_dict()
 
     def aggregate(
         self,

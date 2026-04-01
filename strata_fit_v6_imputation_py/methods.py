@@ -1,10 +1,14 @@
+import json
+import math
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 from vantage6.algorithm.client import AlgorithmClient
 from vantage6.algorithm.tools.util import info
 
 from v6_federated_core import (
+    DataContractError,
     MethodContext,
     MethodRegistry,
     MethodSpec,
@@ -41,6 +45,51 @@ def _get_dataframe(context: MethodContext) -> pd.DataFrame:
     if df is None:
         raise RuntimeError("Method context is missing the dataframe")
     return df
+
+
+def _normalize_for_json(value: Any) -> Any:
+    if value is None or value is pd.NA or value is pd.NaT:
+        return None
+    if isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, np.generic):
+        return _normalize_for_json(value.item())
+    if isinstance(value, np.ndarray):
+        return [_normalize_for_json(item) for item in value.tolist()]
+    if isinstance(value, pd.DataFrame):
+        return _normalize_for_json(value.to_dict())
+    if isinstance(value, pd.Series):
+        return _normalize_for_json(value.to_dict())
+    if isinstance(value, dict):
+        return {
+            str(key): _normalize_for_json(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple, set)):
+        return [_normalize_for_json(item) for item in value]
+    raise DataContractError(
+        "Encountered non-JSON-serializable value in payload",
+        meta={"value_type": type(value).__name__},
+    )
+
+
+def _ensure_json_payload(payload: Any) -> Dict[str, Any]:
+    normalized = _normalize_for_json(payload)
+    if not isinstance(normalized, dict):
+        raise DataContractError(
+            "Method output must be a dictionary payload",
+            meta={"payload_type": type(normalized).__name__},
+        )
+    try:
+        json.dumps(normalized, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise DataContractError(
+            "Method output is not JSON-serializable",
+            meta={"error": str(exc)},
+        ) from exc
+    return normalized
 
 
 def _ensure_partial_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -157,12 +206,14 @@ def central_handler(
                 )
             )
 
-        return build_imputation_model_config(
-            strategy=imputation_strategy.value,
-            parameters=_build_model_parameters(columns, max_iter=max_rounds),
-            state=global_state,
-            n_organizations=len(organization_ids),
-            schema_version=data.imputation_config.schema_version,
+        return _ensure_json_payload(
+            build_imputation_model_config(
+                strategy=imputation_strategy.value,
+                parameters=_build_model_parameters(columns, max_iter=max_rounds),
+                state=global_state,
+                n_organizations=len(organization_ids),
+                schema_version=data.imputation_config.schema_version,
+            )
         )
 
     node_metrics = _run_partial_task(
@@ -184,15 +235,17 @@ def central_handler(
         columns=columns,
     )
 
-    return build_imputation_model_config(
-        strategy=imputation_strategy.value,
-        parameters=_build_model_parameters(
-            columns,
-            max_iter=data.imputation_config.parameters.max_iter,
+    return _ensure_json_payload(
+        build_imputation_model_config(
+            strategy=imputation_strategy.value,
+            parameters=_build_model_parameters(
+                columns,
+                max_iter=data.imputation_config.parameters.max_iter,
+            ),
+            state=global_metrics,
+            n_organizations=len(node_metrics),
+            schema_version=data.imputation_config.schema_version,
         ),
-        state=global_metrics,
-        n_organizations=len(node_metrics),
-        schema_version=data.imputation_config.schema_version,
     )
 
 
@@ -206,7 +259,9 @@ def partial_compute_handler(
     df = _get_dataframe(context)
     imputer = STRATEGY_REGISTRY[data.imputation_strategy]()
     info(f"Computing imputation metrics with strategy: {data.imputation_strategy.value}")
-    return imputer.compute(df, data.columns, global_state=data.global_state)
+    return _ensure_json_payload(
+        imputer.compute(df, data.columns, global_state=data.global_state)
+    )
 
 
 def get_local_sums_handler(
@@ -227,7 +282,7 @@ def get_local_sums_handler(
             }
         else:
             results[column] = {"sum": 0.0, "count": 0}
-    return results
+    return _ensure_json_payload(results)
 
 
 METHOD_REGISTRY = MethodRegistry(

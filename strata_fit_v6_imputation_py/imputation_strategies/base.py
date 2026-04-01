@@ -67,7 +67,7 @@ class ImputationStrategy(ABC):
         pass
 
     @abstractmethod
-    def impute(self, df: pd.DataFrame, global_metric: Dict) -> pd.DataFrame:
+    def impute(self, df: pd.DataFrame, global_metric: Dict) -> Dict[str, Any]:
         """imputes the given metrics into df
 
         Args:
@@ -75,7 +75,7 @@ class ImputationStrategy(ABC):
             global_metric (Dict[str, Any]): column, metric pairs
 
         Returns:
-            pd.DataFrame: the imputed dataframe
+            Dict[str, Any]: JSON-serializable imputed dataframe payload
         """
         pass
 
