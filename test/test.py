@@ -5,8 +5,10 @@ from tempfile import TemporaryDirectory
 import pandas as pd
 from vantage6.algorithm.tools.mock_client import MockAlgorithmClient
 
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from strata_fit_v6_imputation_py.imputation_strategies.mean import MeanImputer
+from strata_fit_v6_imputation_py.imputation_strategies.mice import MiceImputer
 
 
 def _build_dataset_frames() -> list[pd.DataFrame]:
@@ -63,6 +65,23 @@ def build_client() -> MockAlgorithmClient:
     # Persist the temporary files for the lifetime of the client.
     client._test_tmpdir = temp_dir  # type: ignore[attr-defined]
     return client
+
+
+def test_compute_returns_dict_for_supported_strategies() -> None:
+    frame = _build_dataset_frames()[0]
+    columns = ["DAS28", "CRP", "ESR", "SJC28", "TJC28"]
+
+    mean_payload = MeanImputer().compute(frame, columns)
+    mice_payload = MiceImputer().compute(
+        frame,
+        columns,
+        global_state={
+            "initial_means": {column: float(frame[column].dropna().mean()) for column in columns}
+        },
+    )
+
+    assert isinstance(mean_payload, dict)
+    assert isinstance(mice_payload, dict)
 
 
 def test_imputation_central_end_to_end() -> None:
