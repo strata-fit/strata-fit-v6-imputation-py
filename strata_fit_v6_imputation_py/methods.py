@@ -165,7 +165,9 @@ def central_handler(
     columns = data.imputation_config.parameters.columns
 
     if imputation_strategy == ImputationStrategyEnum.MICE_IMPUTER:
-        info("Round 0: calculating global means for MICE initialization")
+
+        info("Round 0: computing global means")
+
         sum_results = _run_partial_task(
             client,
             input_={
@@ -176,40 +178,83 @@ def central_handler(
             },
             organization_ids=organization_ids,
         )
-        global_state: Dict[str, Any] = {
-            "initial_means": _compute_global_means(sum_results, columns)
+
+        global_state = {
+            "initial_means": _compute_global_means(
+                sum_results,
+                columns,
+            ),
+            "global_estimates": [],
         }
+
         max_rounds = (
             data.imputation_config.parameters.max_iter
             or DEFAULT_MICE_MAX_ITER
         )
-        imputer = STRATEGY_REGISTRY[imputation_strategy]()
 
-        for round_num in range(max_rounds):
-            info(f"Starting MICE round {round_num + 1}/{max_rounds}")
-            node_metrics = _run_partial_task(
-                client,
-                input_={
-                    "method": "partial_compute",
-                    "kwargs": {
-                        "columns": columns,
-                        "imputation_strategy": imputation_strategy,
-                        "global_state": global_state,
-                    },
-                },
-                organization_ids=organization_ids,
+        imputer = STRATEGY_REGISTRY[
+            imputation_strategy
+        ]()
+
+        # =====================================================
+        # TRUE SEQUENTIAL MICE
+        # =====================================================
+
+        for round_idx in range(max_rounds):
+
+            info(
+                f"MICE iteration "
+                f"{round_idx + 1}/{max_rounds}"
             )
-            global_state.update(
-                imputer.aggregate(
+
+            for feat_idx in range(len(columns)):
+
+                node_metrics = _run_partial_task(
+                    client,
+                    input_={
+                        "method": "partial_compute",
+                        "kwargs": {
+                            "columns": columns,
+                            "imputation_strategy": imputation_strategy,
+                            "global_state": {
+                                **global_state,
+                                "target_feat_idx": feat_idx,
+                            },
+                        },
+                    },
+                    organization_ids=organization_ids,
+                )
+
+                aggregated = imputer.aggregate(
                     node_metrics=node_metrics,
                     columns=columns,
                 )
-            )
+
+                est = aggregated["global_estimates"][0]
+
+                # replace old estimate
+                global_state["global_estimates"] = [
+                    e
+                    for e in global_state["global_estimates"]
+                    if e["feat_idx"] != feat_idx
+                ]
+
+                global_state["global_estimates"].append(est)
+
+                # IMPORTANT:
+                # keep chain ordered
+                global_state["global_estimates"] = sorted(
+                    global_state["global_estimates"],
+                    key=lambda x: x["feat_idx"],
+                )
 
         return _ensure_json_payload(
             build_imputation_model_config(
                 strategy=imputation_strategy.value,
-                parameters=_build_model_parameters(columns, max_iter=max_rounds),
+                parameters=_build_model_parameters(
+                    columns,
+                    max_iter=max_rounds,
+                ),
                 state=global_state,
                 n_organizations=len(organization_ids),
                 schema_version=data.imputation_config.schema_version,
