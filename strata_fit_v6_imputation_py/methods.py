@@ -180,7 +180,8 @@ def central_handler(
             organization_ids=organization_ids,
         )
         global_state: Dict[str, Any] = {
-            "initial_means": _compute_global_means(sum_results, columns)
+            "initial_means": _compute_global_means(sum_results, columns),
+            "global_estimates": [],
         }
         max_rounds = (
             data.imputation_config.parameters.max_iter
@@ -190,24 +191,40 @@ def central_handler(
 
         for round_num in range(max_rounds):
             info(f"Starting MICE round {round_num + 1}/{max_rounds}")
-            node_metrics = _run_partial_task(
-                client,
-                input_={
-                    "method": "partial_compute",
-                    "kwargs": {
-                        "columns": columns,
-                        "imputation_strategy": imputation_strategy,
-                        "global_state": global_state,
+            for target_feat_idx in range(len(columns)):
+                node_metrics = _run_partial_task(
+                    client,
+                    input_={
+                        "method": "partial_compute",
+                        "kwargs": {
+                            "columns": columns,
+                            "imputation_strategy": imputation_strategy,
+                            "global_state": {
+                                **global_state,
+                                "target_feat_idx": target_feat_idx,
+                            },
+                        },
                     },
-                },
-                organization_ids=organization_ids,
-            )
-            global_state.update(
-                imputer.aggregate(
+                    organization_ids=organization_ids,
+                )
+                aggregated = imputer.aggregate(
                     node_metrics=node_metrics,
                     columns=columns,
                 )
-            )
+                estimates = aggregated.get("global_estimates", [])
+                if not estimates:
+                    continue
+                current_estimate = estimates[0]
+                global_state["global_estimates"] = [
+                    estimate
+                    for estimate in global_state["global_estimates"]
+                    if estimate.get("feat_idx") != target_feat_idx
+                ]
+                global_state["global_estimates"].append(current_estimate)
+                global_state["global_estimates"] = sorted(
+                    global_state["global_estimates"],
+                    key=lambda estimate: estimate["feat_idx"],
+                )
 
         return _ensure_json_payload(
             build_imputation_model_config(

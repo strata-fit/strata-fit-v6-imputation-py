@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from io import StringIO
 from pathlib import Path
 
 import json
@@ -57,7 +56,11 @@ def test_compute_returns_dict_for_supported_strategies() -> None:
         frame,
         columns,
         global_state={
-            "initial_means": {column: float(frame[column].dropna().mean()) for column in columns}
+            "initial_means": {
+                column: float(frame[column].dropna().mean()) for column in columns
+            },
+            "global_estimates": [],
+            "target_feat_idx": 0,
         },
     )
 
@@ -108,6 +111,7 @@ def test_imputation_central_mice_end_to_end() -> None:
     assert "initial_means" in result["state"]
     assert "global_estimates" in result["state"]
     assert isinstance(result["state"]["global_estimates"], list)
+    assert len(result["state"]["global_estimates"]) == len(columns)
 
 
 def test_run_context_partial_writes_output(tmp_path: Path) -> None:
