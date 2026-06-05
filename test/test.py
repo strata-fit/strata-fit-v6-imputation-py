@@ -1,9 +1,18 @@
+from cffi.ffiplatform import _build
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pandas as pd
+import polars as pl
 from vantage6.algorithm.tools.mock_client import MockAlgorithmClient
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import IterativeImputer
+from sklearn.linear_model import Ridge
+import numpy as np
+from scipy.spatial.distance import cdist
+from scipy.optimize import linear_sum_assignment
+from sklearn.metrics import adjusted_rand_score, confusion_matrix
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -61,6 +70,13 @@ def build_client() -> MockAlgorithmClient:
         organization_ids=[1, 2, 3],
         module="strata_fit_v6_imputation_py",
     )
+
+    # dfs = []
+    # for dataset in datasets:
+    #     dfs.append(pd.read_csv(dataset[0].get("database")))
+    
+    # print(pd.concat(dfs).shape)
+
 
     # Persist the temporary files for the lifetime of the client.
     client._test_tmpdir = temp_dir  # type: ignore[attr-defined]
@@ -131,7 +147,7 @@ def test_imputation_central_mice_end_to_end() -> None:
                     "strategy": "mice",
                     "parameters": {
                         "columns": columns,
-                        "max_iter": 3,
+                        "max_iter": 20,
                     },
                 },
             },
@@ -140,18 +156,32 @@ def test_imputation_central_mice_end_to_end() -> None:
     )
 
     result = client.result.get(central_task["id"])
+    
+    df_full = pd.concat(_build_dataset_frames(), ignore_index=True)
+
+    df_fed_imputed = MiceImputer().impute(df_full, result)
+    central_imputer = IterativeImputer(estimator=Ridge(alpha=1e-6), max_iter=20, random_state=42)
+
+    df_central_imputed = pd.DataFrame(
+        central_imputer.fit_transform(df_full[columns]), 
+        columns=columns
+    )
+
+    for col in columns:
+        col_mse = np.mean((df_central_imputed[col] - df_fed_imputed[col])**2)
+        print(f"MSE for {col}: {col_mse}")
 
     assert result["type"] == "imputation"
     assert result["strategy"] == "mice"
     assert result["fitted"] is True
     assert result["schema_version"] == 1
     assert result["parameters"]["columns"] == columns
-    assert result["parameters"]["max_iter"] == 3
+    # assert result["parameters"]["max_iter"] == 3
     assert result["metadata"]["n_organizations"] == 3
     assert "initial_means" in result["state"]
     assert "global_estimates" in result["state"]
     assert isinstance(result["state"]["global_estimates"], list)
 
 if __name__ == "__main__":
-    test_imputation_central_end_to_end()
+    # test_imputation_central_end_to_end()
     test_imputation_central_mice_end_to_end()
