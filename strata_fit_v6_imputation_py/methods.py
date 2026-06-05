@@ -4,8 +4,6 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from vantage6.algorithm.client import AlgorithmClient
-from vantage6.algorithm.tools.util import info
 
 from v6_federated_core import (
     DataContractError,
@@ -26,14 +24,19 @@ from .contracts import (
     PartialComputeInput,
     PartialComputeOutput,
 )
-from .imputation_strategies.base import ImputationStrategyEnum, STRATEGY_REGISTRY
+from .imputation_strategies.base import (
+    ImputationStrategyEnum,
+    STRATEGY_REGISTRY,
+    get_strategy_class,
+)
+from .log import info
 from .utils import build_imputation_model_config
 
 MINIMUM_ORGANIZATIONS = 3
 DEFAULT_MICE_MAX_ITER = 5
 
 
-def _get_client(context: MethodContext) -> AlgorithmClient:
+def _get_client(context: MethodContext) -> Any:
     client = context.meta.get("client")
     if client is None:
         raise RuntimeError("Method context is missing the AlgorithmClient")
@@ -107,7 +110,7 @@ def _ensure_partial_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any
 
 
 def _run_partial_task(
-    client: AlgorithmClient,
+    client: Any,
     input_: Dict[str, Any],
     organization_ids: List[int],
 ) -> List[Dict[str, Any]]:
@@ -183,7 +186,7 @@ def central_handler(
             data.imputation_config.parameters.max_iter
             or DEFAULT_MICE_MAX_ITER
         )
-        imputer = STRATEGY_REGISTRY[imputation_strategy]()
+        imputer = get_strategy_class(imputation_strategy)()
 
         for round_num in range(max_rounds):
             info(f"Starting MICE round {round_num + 1}/{max_rounds}")
@@ -230,7 +233,7 @@ def central_handler(
 
     info("Results obtained!")
     info("Computing global metrics")
-    global_metrics = STRATEGY_REGISTRY[imputation_strategy]().aggregate(
+    global_metrics = get_strategy_class(imputation_strategy)().aggregate(
         node_metrics=node_metrics,
         columns=columns,
     )
@@ -257,7 +260,7 @@ def partial_compute_handler(
         raise RuntimeError("Method context is required for the partial handler")
 
     df = _get_dataframe(context)
-    imputer = STRATEGY_REGISTRY[data.imputation_strategy]()
+    imputer = get_strategy_class(data.imputation_strategy)()
     info(f"Computing imputation metrics with strategy: {data.imputation_strategy.value}")
     return _ensure_json_payload(
         imputer.compute(df, data.columns, global_state=data.global_state)

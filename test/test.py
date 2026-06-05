@@ -1,14 +1,16 @@
-import sys
+from __future__ import annotations
+
+from io import StringIO
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
+import json
 import pandas as pd
-from vantage6.algorithm.tools.mock_client import MockAlgorithmClient
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
+from strata_fit_v6_imputation_py import run_local_imputation
 from strata_fit_v6_imputation_py.imputation_strategies.mean import MeanImputer
 from strata_fit_v6_imputation_py.imputation_strategies.mice import MiceImputer
+from strata_fit_v6_imputation_py.partial import partial_compute
+from strata_fit_v6_imputation_py.runtime import RunContext
 
 
 def _build_dataset_frames() -> list[pd.DataFrame]:
@@ -46,27 +48,6 @@ def _build_dataset_frames() -> list[pd.DataFrame]:
     ]
 
 
-def build_client() -> MockAlgorithmClient:
-    temp_dir = TemporaryDirectory()
-    tmp_path = Path(temp_dir.name)
-    datasets = []
-
-    for idx, frame in enumerate(_build_dataset_frames(), start=1):
-        csv_path = tmp_path / f"org_{idx}.csv"
-        frame.to_csv(csv_path, index=False)
-        datasets.append([{"database": csv_path, "db_type": "csv"}])
-
-    client = MockAlgorithmClient(
-        datasets=datasets,
-        organization_ids=[1, 2, 3],
-        module="strata_fit_v6_imputation_py",
-    )
-
-    # Persist the temporary files for the lifetime of the client.
-    client._test_tmpdir = temp_dir  # type: ignore[attr-defined]
-    return client
-
-
 def test_compute_returns_dict_for_supported_strategies() -> None:
     frame = _build_dataset_frames()[0]
     columns = ["DAS28", "CRP", "ESR", "SJC28", "TJC28"]
@@ -84,29 +65,17 @@ def test_compute_returns_dict_for_supported_strategies() -> None:
     assert isinstance(mice_payload, dict)
 
 
-def test_imputation_central_end_to_end() -> None:
-    client = build_client()
-    org_ids = [org["id"] for org in client.organization.list()]
+def test_imputation_central_mean_end_to_end() -> None:
     columns = ["DAS28", "CRP", "ESR", "SJC28", "TJC28"]
-
-    central_task = client.task.create(
-        input_={
-            "method": "central",
-            "kwargs": {
-                "organizations_to_include": org_ids,
-                "imputation_config": {
-                    "schema_version": 1,
-                    "strategy": "mean",
-                    "parameters": {
-                        "columns": columns,
-                    },
-                },
-            },
+    result = run_local_imputation(
+        _build_dataset_frames(),
+        organizations_to_include=[0, 1, 2],
+        imputation_config={
+            "schema_version": 1,
+            "strategy": "mean",
+            "parameters": {"columns": columns},
         },
-        organizations=[org_ids[0]],
     )
-
-    result = client.result.get(central_task["id"])
 
     assert result["type"] == "imputation"
     assert result["strategy"] == "mean"
@@ -116,30 +85,18 @@ def test_imputation_central_end_to_end() -> None:
     assert result["metadata"]["n_organizations"] == 3
     assert "state" in result and result["state"]
 
+
 def test_imputation_central_mice_end_to_end() -> None:
-    client = build_client()
-    org_ids = [org["id"] for org in client.organization.list()]
     columns = ["DAS28", "CRP", "ESR", "SJC28", "TJC28"]
-
-    central_task = client.task.create(
-        input_={
-            "method": "central",
-            "kwargs": {
-                "organizations_to_include": org_ids,
-                "imputation_config": {
-                    "schema_version": 1,
-                    "strategy": "mice",
-                    "parameters": {
-                        "columns": columns,
-                        "max_iter": 3,
-                    },
-                },
-            },
+    result = run_local_imputation(
+        _build_dataset_frames(),
+        organizations_to_include=[0, 1, 2],
+        imputation_config={
+            "schema_version": 1,
+            "strategy": "mice",
+            "parameters": {"columns": columns, "max_iter": 3},
         },
-        organizations=[org_ids[0]],
     )
-
-    result = client.result.get(central_task["id"])
 
     assert result["type"] == "imputation"
     assert result["strategy"] == "mice"
@@ -152,6 +109,31 @@ def test_imputation_central_mice_end_to_end() -> None:
     assert "global_estimates" in result["state"]
     assert isinstance(result["state"]["global_estimates"], list)
 
+
+def test_run_context_partial_writes_output(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "dataset.csv"
+    output_path = tmp_path / "out.json"
+    _build_dataset_frames()[0].to_csv(dataset_path, index=False)
+
+    context = RunContext(
+        source=tmp_path / "run_context.json",
+        payload={
+            "entrypoint": {"name": "partial_compute"},
+            "arguments": {
+                "named": {
+                    "columns": ["DAS28", "CRP"],
+                    "imputation_strategy": "mean",
+                }
+            },
+            "inputs": [{"uri": str(dataset_path)}],
+            "outputs": [{"uri": str(output_path)}],
+        },
+    )
+
+    result = partial_compute(run_context=context)
+    assert json.loads(output_path.read_text(encoding="utf-8")) == result
+
+
 if __name__ == "__main__":
-    test_imputation_central_end_to_end()
+    test_imputation_central_mean_end_to_end()
     test_imputation_central_mice_end_to_end()

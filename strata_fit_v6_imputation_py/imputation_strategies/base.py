@@ -1,4 +1,5 @@
 from enum import Enum
+from importlib import import_module
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Type
 
@@ -81,3 +82,17 @@ class ImputationStrategy(ABC):
 
 
 STRATEGY_REGISTRY: Dict[ImputationStrategyEnum, Type[ImputationStrategy]] = {}
+
+_STRATEGY_MODULES: Dict[ImputationStrategyEnum, str] = {
+    ImputationStrategyEnum.MEAN_IMPUTER: ".mean",
+    ImputationStrategyEnum.MICE_IMPUTER: ".mice",
+}
+
+
+def get_strategy_class(key: ImputationStrategyEnum) -> Type[ImputationStrategy]:
+    if key not in STRATEGY_REGISTRY:
+        module_name = _STRATEGY_MODULES.get(key)
+        if module_name is None:
+            raise KeyError(f"No imputation strategy module registered for {key}")
+        import_module(module_name, package=__package__)
+    return STRATEGY_REGISTRY[key]

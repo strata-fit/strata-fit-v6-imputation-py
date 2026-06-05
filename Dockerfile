@@ -1,24 +1,24 @@
-# basic python3 image as base
-FROM harbor2.vantage6.ai/infrastructure/algorithm-base:4.13
+FROM python:3.11-slim
 
-# This is a placeholder that should be overloaded by invoking
-# docker build with '--build-arg PKG_NAME=...'
-ARG PKG_NAME="strata_fit_v6_imputation_py"
-
-# Required for pip to install git-based pinned dependencies.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends git \
-    && rm -rf /var/lib/apt/lists/*
-
-# install federated algorithm
+WORKDIR /app
 COPY . /app
-RUN pip install /app
 
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PKG_NAME=strata_fit_v6_imputation_py
 
-# Set environment variable to make name of the package available within the
-# docker image.
-ENV PKG_NAME=${PKG_NAME}
+RUN pip install \
+    numpy \
+    pandas \
+    pydantic \
+    pyarrow \
+    requests \
+    PyJWT \
+    scikit-learn
 
-# Tell docker to execute `wrap_algorithm()` when the image is run. This function
-# will ensure that the algorithm method is called properly.
-CMD python -c "from vantage6.algorithm.tools.wrap import wrap_algorithm; wrap_algorithm()"
+RUN pip install --no-deps \
+    "v6-federated-algo-core-py @ https://github.com/mdw-nl/v6-federated-algo-core-v6/archive/c29dd63f40c6e3997a0865cb0cbc81dd9ce02a60.tar.gz"
+
+RUN pip install --no-deps /app
+
+CMD ["python", "-m", "strata_fit_v6_imputation_py.container"]
