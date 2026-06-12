@@ -1,10 +1,8 @@
 from __future__ import annotations
-from io import StringIO
 from pathlib import Path
 
 import json
 import pandas as pd
-
 
 from strata_fit_v6_imputation_py import run_local_imputation
 from strata_fit_v6_imputation_py.imputation_strategies.mean import MeanImputer
@@ -48,7 +46,6 @@ def _build_dataset_frames() -> list[pd.DataFrame]:
     ]
 
 
-
 def test_compute_returns_dict_for_supported_strategies() -> None:
     frame = _build_dataset_frames()[0]
     columns = ["DAS28", "CRP", "ESR", "SJC28", "TJC28"]
@@ -58,7 +55,11 @@ def test_compute_returns_dict_for_supported_strategies() -> None:
         frame,
         columns,
         global_state={
-            "initial_means": {column: float(frame[column].dropna().mean()) for column in columns}
+            "initial_means": {
+                column: float(frame[column].dropna().mean()) for column in columns
+            },
+            "global_estimates": [],
+            "target_feat_idx": 0,
         },
     )
 
@@ -89,7 +90,6 @@ def test_imputation_central_mean_end_to_end() -> None:
 
 def test_imputation_central_mice_end_to_end() -> None:
     columns = ["DAS28", "CRP", "ESR", "SJC28", "TJC28"]
-
     result = run_local_imputation(
         _build_dataset_frames(),
         organizations_to_include=[0, 1, 2],
@@ -105,11 +105,37 @@ def test_imputation_central_mice_end_to_end() -> None:
     assert result["fitted"] is True
     assert result["schema_version"] == 1
     assert result["parameters"]["columns"] == columns
-    # assert result["parameters"]["max_iter"] == 3
+    assert result["parameters"]["max_iter"] == 3
     assert result["metadata"]["n_organizations"] == 3
     assert "initial_means" in result["state"]
     assert "global_estimates" in result["state"]
     assert isinstance(result["state"]["global_estimates"], list)
+    assert len(result["state"]["global_estimates"]) == len(columns)
+
+
+def test_run_context_partial_writes_output(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "dataset.csv"
+    output_path = tmp_path / "out.json"
+    _build_dataset_frames()[0].to_csv(dataset_path, index=False)
+
+    context = RunContext(
+        source=tmp_path / "run_context.json",
+        payload={
+            "entrypoint": {"name": "partial_compute"},
+            "arguments": {
+                "named": {
+                    "columns": ["DAS28", "CRP"],
+                    "imputation_strategy": "mean",
+                }
+            },
+            "inputs": [{"uri": str(dataset_path)}],
+            "outputs": [{"uri": str(output_path)}],
+        },
+    )
+
+    result = partial_compute(run_context=context)
+    assert json.loads(output_path.read_text(encoding="utf-8")) == result
+
 
 
 def test_run_context_partial_writes_output(tmp_path: Path) -> None:
