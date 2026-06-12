@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from pathlib import Path
 
 import json
@@ -112,6 +111,31 @@ def test_imputation_central_mice_end_to_end() -> None:
     assert "global_estimates" in result["state"]
     assert isinstance(result["state"]["global_estimates"], list)
     assert len(result["state"]["global_estimates"]) == len(columns)
+
+
+def test_run_context_partial_writes_output(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "dataset.csv"
+    output_path = tmp_path / "out.json"
+    _build_dataset_frames()[0].to_csv(dataset_path, index=False)
+
+    context = RunContext(
+        source=tmp_path / "run_context.json",
+        payload={
+            "entrypoint": {"name": "partial_compute"},
+            "arguments": {
+                "named": {
+                    "columns": ["DAS28", "CRP"],
+                    "imputation_strategy": "mean",
+                }
+            },
+            "inputs": [{"uri": str(dataset_path)}],
+            "outputs": [{"uri": str(output_path)}],
+        },
+    )
+
+    result = partial_compute(run_context=context)
+    assert json.loads(output_path.read_text(encoding="utf-8")) == result
+
 
 
 def test_run_context_partial_writes_output(tmp_path: Path) -> None:
