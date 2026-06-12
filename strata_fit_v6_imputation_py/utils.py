@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
-import polars as pl
+
 import pandas as pd
 
 def stack_results(results: List[Dict[Any, Any]]) -> pd.DataFrame:
@@ -12,11 +12,18 @@ def stack_results(results: List[Dict[Any, Any]]) -> pd.DataFrame:
     Returns:
         pd.DataFrame: combined data
     """
-    dfs = []
+    frames = []
     for df_dict in results:
-        dfs.append(pl.DataFrame({col: list(inner_dict.values()) for col, inner_dict in df_dict.items()}))
+        materialized = {
+            col: list(inner_dict.values()) if isinstance(inner_dict, dict) else [inner_dict]
+            for col, inner_dict in df_dict.items()
+        }
+        if materialized:
+            frames.append(pd.DataFrame(materialized))
 
-    return pl.concat(dfs, how="vertical").to_pandas()
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
 
 
 def build_imputation_model_config(

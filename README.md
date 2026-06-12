@@ -1,47 +1,76 @@
+# strata-fit-v6-imputation-py
 
-# strata-fit-v6-kmeans-py
+Standalone federated imputation algorithm for STRATA-FIT v6.
 
-Run suited imputation methods in a federated environment.
+## Runtime
 
-Current considerations on imputation methods:
+- Base image: `python:3.11-slim`
+- Container entrypoint: `python -m strata_fit_v6_imputation_py.container`
+- Runtime contract: `RUN_CONTEXT_FILE`
+- Public methods:
+  - `central`
+  - `partial_compute`
+  - `get_local_sums`
 
-- Different missingness mechanisms require different handling:
+This repo no longer depends on `vantage6-algorithm-tools`, Harbor `algorithm-base`, or `polars`.
 
-  - MCAR (Missing Completely At Random): simple imputers (mean/median, kNN) can perform adequately.
+## Supported strategies
 
-  - MAR (Missing At Random): methods that model joint distributions (e.g. MICE, missForest, MIWAE) are generally considered good.
+- `mean`
+- `mice`
 
-  - MNAR (Missing Not At Random): cannot be identified from observed data alone — must be addressed with sensitivity analyses or model-based approaches (selection/pattern-mixture models). Evtl. adding config files with domain knowledge for each center/node
+The strategy registry is lazy-loaded so importing the package root does not eagerly import every strategy module.
 
-- Robust methods that perform well across various patterns:
+## Install
 
-  - Nonparametric: missForest, IterativeImputer, miceforest.
+```bash
+python -m pip install -e .[dev]
+```
 
-  - Model-based: Multiple Imputation by Chained Equations (MICE).
+## Example task input
 
-  - Deep generative: MIWAE / VAE-based approaches (and federated variants like Fed-MIWAE).
-    - Could not find any easy to re-use implementation of federated imputation
+```python
+input_ = {
+    "method": "central",
+    "kwargs": {
+        "organizations_to_include": [1, 2, 3],
+        "imputation_config": {
+            "schema_version": 1,
+            "strategy": "mean",
+            "parameters": {
+                "columns": ["DAS28", "CRP", "ESR"],
+            },
+        },
+    },
+}
+```
 
-  - Simple baselines: mean, median, kNN (useful for benchmarking).
+For MICE:
 
-- Automatic imputer selection using a mask-and-recover strategy:
+```python
+"imputation_config": {
+    "schema_version": 1,
+    "strategy": "mice",
+    "parameters": {
+        "columns": ["DAS28", "CRP", "ESR"],
+        "max_iter": 3,
+    },
+}
+```
 
-  - Simulate missingness on the observed part of the data (both MCAR and MAR-like masks).
+## Local development
 
-  - Benchmark multiple imputers locally.
+Pure local execution is available through `run_local_imputation(...)`.
 
-  - Select the best-performing one per variable or dataset.
+Repo-local verification:
 
-  - Optionally share only aggregated scores for global consensus (no raw data transfer).
+```bash
+/tmp/strata-imputation-verify/bin/python -m pytest test/test.py -q
+```
 
-- MNAR handling: where domain knowledge or diagnostics suggest MNAR, apply sensitivity analyses (e.g. delta-adjusted MI) and report uncertainty ranges rather than single imputations.
+Equivalent package checks should verify:
 
-<br>
-
-This algorithm is designed to be run with the [vantage6](https://vantage6.ai)
-infrastructure for distributed analysis and learning.
-
-The base code for this algorithm has been created via the
-[v6-algorithm-template](https://github.com/vantage6/v6-algorithm-template)
-template generator.
-
+- package root import is safe
+- mean strategy works without `polars`
+- MICE central orchestration still returns the expected config payload
+- `run_context` partial execution writes JSON output correctly
