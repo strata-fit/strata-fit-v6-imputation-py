@@ -34,6 +34,22 @@ It hides 20% of your observed values, imputes them, and compares the errors agai
 ---
 <br>
 
+## Interpreting the output
+
+All nRMSE values are the error on the hidden test cells, divided by the column’s standard deviation (averaged over columns). Lower is better.
+
+| Line | How to read it |
+|------|----------------|
+|nRMSE_mean_baseline |	The reference point, about 1.0. Any real imputer should score clearly below it.
+|nRMSE_local_BayesRidge / _OLS |	The best-case reference: sklearn MICE on the pooled data. These two should be nearly identical.
+|nRMSE_fed_standalone |	The federated result. Compare it to the local lines.
+|nRMSE_fed_meta	| The meta-algo version. It is NaN if the meta-algo repo is not installed.
+| diff_*_vs_localOLS |	How far the federated imputations are from local MICE on the hidden cells. Smaller is closer.
+|maxabs_stand_split_N_vs_N+1 |	Must be about 0. If not, the federation is wrong, since the result must not depend on how the data is split.
+
+
+---
+<br>
 Standalone federated imputation algorithm for STRATA-FIT v6.
 
 ## Runtime
