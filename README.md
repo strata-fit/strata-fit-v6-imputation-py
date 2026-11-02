@@ -21,14 +21,18 @@ It hides 20% of your observed values, imputes them, and compares the errors agai
 [uv run] python test/compare_fed_vs_local_mice.py \
   --csv path/to/your_data.csv \
   --cols DAS28 CRP ESR SJC28 TJC28 ... \
+  --aux Visit_months_from_diagnosis Sex ...\ # variables not imputed
   --n-sites 3 --max-iter 5 \
   --group-col pat_ID \
+  --reps 5 # run N times and average over runs
   [--save-dir out/] # saves both local and federated imputed datasets
 ```
 
 - --cols: numeric columns to impute.
+- --aux: Auxiliary columns are used as predictors by every method (local, standalone and meta). They are never masked or scored.
 - --n-sites: number of simulated sites (at least 3).
 - --max-iter: federated and local iterations.
+- --reps: runs N times and reports the mean
 - --group-col: keeps all rows of a patient in one simulated site. Use a center column if you have one.
 - --save-dir: optional; saves the global federated model (fed_model.json) and both imputed datasets for downstream comparison (e.g. Cox). The CSVs contain patient data, so don’t share them.
 ---
