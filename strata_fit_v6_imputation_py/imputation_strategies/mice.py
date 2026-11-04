@@ -27,6 +27,31 @@ class MiceImputer(ImputationStrategy):
 
     RIDGE = 1e-6
 
+    # >>> NEW (A): two helper methods <<<
+    @staticmethod
+    def _apply_estimate(
+        df: pd.DataFrame,
+        data_work: pd.DataFrame,
+        columns: List[str],
+        estimate: Dict[str, Any],
+    ) -> None:
+        """Overwrite the originally-missing cells of one feature, in place."""
+        col = columns[estimate["feat_idx"]]
+        missing_mask = df[col].isna()
+        if not missing_mask.any():
+            return
+        predictor_columns = [columns[i] for i in estimate["neighbor_indices"]]
+        X_missing = data_work.loc[missing_mask, predictor_columns].to_numpy(float)
+        X_missing = np.hstack([np.ones((X_missing.shape[0], 1)), X_missing])
+        beta = np.array([estimate["intercept"]] + estimate["coef"], dtype=float)
+        data_work.loc[missing_mask, col] = X_missing @ beta
+
+    @staticmethod
+    def _sequence(state: Dict[str, Any]) -> List[Dict[str, Any]] | None:
+        """Ordered list of every fitted step (round by round), or None for old models."""
+        seq = state.get("imputation_sequence")
+        return list(seq) if seq else None
+
     # ============================================================
     # LOCAL PARTIAL COMPUTE
     # ============================================================
@@ -64,44 +89,18 @@ class MiceImputer(ImputationStrategy):
         # APPLY CURRENT GLOBAL CHAIN SEQUENTIALLY
         # --------------------------------------------------------
 
-        global_estimates = sorted(
-            state.get("global_estimates", []),
-            key=lambda x: x["feat_idx"],
-        )
-
-        for estimate in global_estimates:
-
-            feat_idx = estimate["feat_idx"]
-            col = columns[feat_idx]
-
-            missing_mask = df[col].isna()
-
-            if not missing_mask.any():
-                continue
-
-            predictor_indices = estimate["neighbor_indices"]
-
-            predictor_columns = [
-                columns[i] for i in predictor_indices
-            ]
-
-            X_missing = data_work.loc[
-                missing_mask,
-                predictor_columns,
-            ].values
-
-            X_missing = np.hstack(
-                [np.ones((X_missing.shape[0], 1)), X_missing]
+        # >>> CHANGED (B): replay every step fitted so far, in fitting order <<<
+        # Older models without a stored sequence fall back to one pass
+        # over the latest estimate per feature.
+        sequence = self._sequence(state)
+        if sequence is None:
+            sequence = sorted(
+                state.get("global_estimates", []),
+                key=lambda x: x["feat_idx"],
             )
 
-            beta = np.array(
-                [estimate["intercept"]] + estimate["coef"],
-                dtype=float,
-            )
-
-            preds = X_missing @ beta
-
-            data_work.loc[missing_mask, col] = preds
+        for estimate in sequence:
+            self._apply_estimate(df, data_work, columns, estimate)
 
         # --------------------------------------------------------
         # Compute sufficient statistics ONLY for target feature
@@ -245,55 +244,20 @@ class MiceImputer(ImputationStrategy):
                 float(initial_means[col])
             )
 
-        # ordered chain
+        # >>> CHANGED (C): replay the chain exactly as it was fitted <<<
+        sequence = self._sequence(state)
+
+        if sequence is not None:
+            for estimate in sequence:
+                self._apply_estimate(df, data_work, columns, estimate)
+            return data_work
+
+        # Legacy models (no stored sequence): iterate the final estimates.
         estimates = sorted(
             state["global_estimates"],
             key=lambda x: x["feat_idx"],
         )
-
-        # --------------------------------------------------------
-        # TRUE sequential chained equations
-        # --------------------------------------------------------
-
         for _ in range(max_iter):
-
             for estimate in estimates:
-
-                feat_idx = estimate["feat_idx"]
-
-                target_column = columns[feat_idx]
-
-                missing_mask = df[target_column].isna()
-
-                if not missing_mask.any():
-                    continue
-
-                predictor_columns = [
-                    columns[i]
-                    for i in estimate["neighbor_indices"]
-                ]
-
-                X_missing = data_work.loc[
-                    missing_mask,
-                    predictor_columns,
-                ].values
-
-                X_missing = np.hstack(
-                    [np.ones((X_missing.shape[0], 1)), X_missing]
-                )
-
-                beta = np.array(
-                    [estimate["intercept"]]
-                    + estimate["coef"],
-                    dtype=float,
-                )
-
-                preds = X_missing @ beta
-
-                # immediate in-place update
-                data_work.loc[
-                    missing_mask,
-                    target_column,
-                ] = preds
-
+                self._apply_estimate(df, data_work, columns, estimate)
         return data_work
