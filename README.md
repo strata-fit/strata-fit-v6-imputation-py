@@ -26,6 +26,7 @@ It hides 20% of your observed values, imputes them, and compares the errors agai
   --group-col pat_ID \
   --reps 5 # run N times and average over runs
   [--save-dir out/] # saves both local and federated imputed datasets
+  -- diagnose # for more diagnosis output
 ```
 
 - --cols: numeric columns to impute.
