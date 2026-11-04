@@ -182,6 +182,7 @@ def central_handler(
         global_state: Dict[str, Any] = {
             "initial_means": _compute_global_means(sum_results, columns),
             "global_estimates": [],
+            "imputation_sequence": [],
         }
         max_rounds = (
             data.imputation_config.parameters.max_iter
@@ -215,6 +216,7 @@ def central_handler(
                 if not estimates:
                     continue
                 current_estimate = estimates[0]
+                global_state["imputation_sequence"].append(current_estimate)
                 global_state["global_estimates"] = [
                     estimate
                     for estimate in global_state["global_estimates"]
