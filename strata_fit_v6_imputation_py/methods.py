@@ -179,19 +179,25 @@ def central_handler(
             },
             organization_ids=organization_ids,
         )
-        global_state: Dict[str, Any] = {
-            "initial_means": _compute_global_means(sum_results, columns),
-            "global_estimates": [],
-        }
+        imputer = get_strategy_class(imputation_strategy)()
         max_rounds = (
             data.imputation_config.parameters.max_iter
             or DEFAULT_MICE_MAX_ITER
         )
-        imputer = get_strategy_class(imputation_strategy)()
+        # Visit the columns in ascending order of missingness (like sklearn).
+        feature_order = imputer.imputation_order(sum_results, columns)
+        global_state: Dict[str, Any] = {
+            "initial_means": _compute_global_means(sum_results, columns),
+            "feature_order": feature_order,
+            # every fitted regression, in fitting order. Nodes rebuild their working
+            # matrix by replaying this sequence, so each regression is fitted on the
+            # imputations of all earlier ones (persistent chained-equations state).
+            "estimate_sequence": [],
+        }
 
         for round_num in range(max_rounds):
             info(f"Starting MICE round {round_num + 1}/{max_rounds}")
-            for target_feat_idx in range(len(columns)):
+            for target_feat_idx in feature_order:
                 node_metrics = _run_partial_task(
                     client,
                     input_={
@@ -214,23 +220,24 @@ def central_handler(
                 estimates = aggregated.get("global_estimates", [])
                 if not estimates:
                     continue
-                current_estimate = estimates[0]
-                global_state["global_estimates"] = [
-                    estimate
-                    for estimate in global_state["global_estimates"]
-                    if estimate.get("feat_idx") != target_feat_idx
-                ]
-                global_state["global_estimates"].append(current_estimate)
-                global_state["global_estimates"] = sorted(
-                    global_state["global_estimates"],
-                    key=lambda estimate: estimate["feat_idx"],
+                global_state["estimate_sequence"].append(
+                    {**estimates[0], "iteration": round_num}
                 )
+
+        # Latest estimate per feature, kept for inspection / backward compatibility.
+        latest: Dict[int, Dict[str, Any]] = {}
+        for estimate in global_state["estimate_sequence"]:
+            latest[estimate["feat_idx"]] = estimate
+        final_state = {
+            **global_state,
+            "global_estimates": [latest[idx] for idx in sorted(latest)],
+        }
 
         return _ensure_json_payload(
             build_imputation_model_config(
                 strategy=imputation_strategy.value,
                 parameters=_build_model_parameters(columns, max_iter=max_rounds),
-                state=global_state,
+                state=final_state,
                 n_organizations=len(organization_ids),
                 schema_version=data.imputation_config.schema_version,
             )
